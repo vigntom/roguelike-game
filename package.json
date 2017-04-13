@@ -1,0 +1,7 @@
+{
+  "name": "roguelike-game",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Aleksandr I. <vigntom@gmail.com>",
+  "license": "MIT"
+}
