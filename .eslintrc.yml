@@ -1,0 +1,27 @@
+env:
+  browser: true
+  es6: true
+  node: true
+globals:
+  React: true
+  ReactDOM: true
+extends: "airbnb-base" # "eslint:recommend"
+parserOptions:
+  sourceType: module
+rules:
+  indent:
+    - error
+    - 2
+  linebreak-style:
+    - error
+    - unix
+  quotes:
+    - error
+    - double
+  semi:
+    - error
+    - never
+  comma-dangle:
+    - error
+    - never
+  no-use-before-define: 0
