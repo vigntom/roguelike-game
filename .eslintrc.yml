@@ -5,7 +5,12 @@ env:
 globals:
   React: true
   ReactDOM: true
-extends: "airbnb-base" # "eslint:recommend"
+  QUnit: true
+plugins:
+  - qunit
+extends: 
+  - "airbnb-base" # "eslint:recommend"
+  - "plugin:qunit/recommended"
 parserOptions:
   sourceType: module
 rules:
