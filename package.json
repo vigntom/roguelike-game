@@ -48,7 +48,8 @@
     "test": "",
     "build:dist": "NODE_ENV=production webpack --progress --colors --env=production",
     "build:dev": "webpack --progress --color --env=dev",
-    "run:dev": "webpack-dev-server --env=dev",
-    "run:pre": "NODE_ENV=production webpack-dev-server --env=dev"
+    "server:dev": "webpack-dev-server --env=dev",
+    "server:pre": "NODE_ENV=production webpack-dev-server --env=dev",
+    "server:test": "karma start karma.config.js"
   }
 }
