@@ -2,10 +2,6 @@ env:
   browser: true
   es6: true
   node: true
-globals:
-  React: true
-  ReactDOM: true
-  QUnit: true
 plugins:
   - qunit
 extends: 
@@ -29,4 +25,9 @@ rules:
   comma-dangle:
     - error
     - never
-  no-use-before-define: 0
+  no-use-before-define: 
+    - off
+  func-names:
+    - off
+  prefer-arrow-callback:
+    - off
