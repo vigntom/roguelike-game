@@ -1,19 +1,13 @@
 (function () {
   function identity(x) { return x }
 
-  function compose() {
-    var parentArguments = arguments
-
-    if (arguments.length === 0) {
-      throw new Error("compose requires at least one argument")
-    }
-
+  function composeOf(args) {
     return function (x) {
       var result = x
-      var id = parentArguments.length - 1
+      var id = args.length - 1
 
       while (id > -1) {
-        result = parentArguments[id](result)
+        result = args[id](result)
         id -= 1
       }
 
@@ -21,9 +15,36 @@
     }
   }
 
-  const Utils = {
-    identity,
-    compose
+  function compose() {
+    var args = arguments
+
+    if (arguments.length === 0) {
+      throw new Error("compose requires at least one argument")
+    }
+
+    return composeOf(args)
+  }
+
+  function range(left, right) {
+    var data = []
+    var index = left
+
+    if (typeof left !== "number" || typeof right !== "number") {
+      throw new Error("Arguments must be numbers")
+    }
+
+    while (index < right) {
+      data.push(index)
+      index += 1
+    }
+
+    return data
+  }
+
+  var Utils = {
+    identity: identity,
+    compose: compose,
+    range: range
   }
 
   if (typeof exports === "object") {
@@ -39,3 +60,6 @@
 /* eslint-env es6:false */
 /* eslint no-var: "off" */
 /* eslint prefer-rest-params: "off" */
+/* eslint object-shorthand: "off" */
+/* eslint vars-on-top: "off" */
+
