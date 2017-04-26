@@ -1,7 +1,7 @@
 (function () {
-  function identity(x) { return x }
+  function identity (x) { return x }
 
-  function composeOf(args) {
+  function composeOf (args) {
     return function (x) {
       var result = x
       var id = args.length - 1
@@ -15,22 +15,22 @@
     }
   }
 
-  function compose() {
+  function compose () {
     var args = arguments
 
     if (arguments.length === 0) {
-      throw new Error("compose requires at least one argument")
+      throw new Error('compose requires at least one argument')
     }
 
     return composeOf(args)
   }
 
-  function range(left, right) {
+  function range (left, right) {
     var data = []
     var index = left
 
-    if (typeof left !== "number" || typeof right !== "number") {
-      throw new Error("Arguments must be numbers")
+    if (typeof left !== 'number' || typeof right !== 'number') {
+      throw new Error('Arguments must be numbers')
     }
 
     while (index < right) {
@@ -47,9 +47,9 @@
     range: range
   }
 
-  if (typeof exports === "object") {
+  if (typeof exports === 'object') {
     module.exports = Utils
-  } else if (typeof define === "function" && define.amd) {
+  } else if (typeof define === 'function' && define.amd) {
     define(function () { return Utils })
   } else {
     window.Utils = Utils
@@ -62,4 +62,3 @@
 /* eslint prefer-rest-params: "off" */
 /* eslint object-shorthand: "off" */
 /* eslint vars-on-top: "off" */
-

@@ -1,17 +1,22 @@
-(function testWebApp() {
+/* globals Utils */
+
+(function testWebApp () {
   const { module, test } = QUnit
 
-  function counter() {
+  const merge2 = (origin, addition) =>
+    Object.assign({}, origin, addition)
+
+  function counter () {
     const init = [{ data: 0 }]
 
     const actions = {
-      noop: () => [WebApp.nomsg],
+      noop: () => [{}],
       inc: ({ data }) => [{ data: data + 1 }],
       dec: ({ data }) => [{ data: data - 1 }]
     }
 
-    function view() {
-      return function render(model) {
+    function view () {
+      return function render (model) {
         return model
       }
     }
@@ -23,7 +28,7 @@
     }
   }
 
-  function pairOfCounters() {
+  function pairOfCounters () {
     const component = counter()
 
     const init = [{
@@ -32,30 +37,21 @@
     }]
 
     const actions = {
-      noop: () => [WebApp.nomsg],
       reset: () => init,
       alfa: action => ({ alfa }) => {
-        const next = action(alfa)
+        const [model, task] = action(alfa)
 
-        if (next[0] === WebApp.nomsg) {
-          return next
-        }
-
-        return [{ alfa: next[0] }, next[1]]
+        return [{ alfa: merge2(alfa, model) }, task]
       },
       betta: action => ({ betta }) => {
-        const next = action(betta)
+        const [model, task] = action(betta)
 
-        if (next[0] === WebApp.nomsg) {
-          return next
-        }
-
-        return [{ betta: next[0] }, next[1]]
+        return [{ betta: merge2(betta, model) }, task]
       }
     }
 
-    function view() {
-      return function render(model) {
+    function view () {
+      return function render (model) {
         return model
       }
     }
@@ -67,26 +63,25 @@
     }
   }
 
-
-  module("web-app", function () {
-    module("constants", function () {
-      test("returns nomsg constant",
+  module('web-app', function () {
+    module('constants', function () {
+      test('returns nomsg constant',
         function (assert) {
           assert.propEqual(WebApp.nomsg, {})
-          assert.notPropEqual(WebApp.nomsg, { foo: "moo" })
+          assert.notPropEqual(WebApp.nomsg, { foo: 'moo' })
         }
       )
     })
 
-    module("counter", {
-      beforeEach() {
+    module('counter', {
+      beforeEach () {
         const { init, actions, view } = counter()
 
         this.init = WebApp.start({ init, render: view() })
         this.actions = actions
       }
     }, function () {
-      test("initial counter equals zero",
+      test('initial counter equals zero',
         function (assert) {
           const { init } = this
 
@@ -95,7 +90,7 @@
         }
       )
 
-      test("noop returns model",
+      test('noop returns model',
         function (assert) {
           const { actions } = this
           const model = WebApp.send(actions.noop)
@@ -105,7 +100,7 @@
         }
       )
 
-      test("inc action increment counter",
+      test('inc action increment counter',
         function (assert) {
           const { actions } = this
 
@@ -115,7 +110,7 @@
         }
       )
 
-      test("dec action decrement counter",
+      test('dec action decrement counter',
         function (assert) {
           const { actions } = this
 
@@ -125,7 +120,7 @@
         }
       )
 
-      test("combine inc and dec",
+      test('combine inc and dec',
         function (assert) {
           const { actions } = this
 
@@ -137,18 +132,18 @@
       )
     })
 
-    module("map", {
-      beforeEach() {
+    module('map to component', {
+      beforeEach () {
         const { init, actions, view } = pairOfCounters()
 
         this.app = WebApp.start({ init, render: view() })
         this.component = counter()
         this.actions = actions
-        this.toAlfa = WebApp.map(actions.alfa)
-        this.toBetta = WebApp.map(actions.betta)
+        this.toAlfa = Utils.compose(WebApp.send, actions.alfa)
+        this.toBetta = Utils.compose(WebApp.send, actions.betta)
       }
     }, function () {
-      test("check initial values",
+      test('check initial values',
         function (assert) {
           const { toAlfa, toBetta, component: { actions } } = this
 
@@ -162,7 +157,7 @@
         }
       )
 
-      test("play with alfa",
+      test('play with alfa',
         function (assert) {
           const { toAlfa, component: { actions } } = this
 
@@ -177,7 +172,7 @@
         }
       )
 
-      test("play with both",
+      test('play with both',
         function (assert) {
           const { toAlfa, toBetta, component: { actions } } = this
 

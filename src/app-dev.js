@@ -1,3 +1,2 @@
-import "./app"
-import "./index.html"
-
+import './app'
+import './index.html'
