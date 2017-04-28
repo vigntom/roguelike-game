@@ -56,9 +56,4 @@
   }
 }())
 
-/* global define: false */
-/* eslint-env es6:false */
-/* eslint no-var: "off" */
-/* eslint prefer-rest-params: "off" */
-/* eslint object-shorthand: "off" */
-/* eslint vars-on-top: "off" */
+/* globals define */

@@ -6,6 +6,13 @@
   const merge2 = (origin, addition) =>
     Object.assign({}, origin, addition)
 
+  function debug (msg) {
+    return function (x) {
+      console.log(msg, x)
+      return x
+    }
+  }
+
   function counter () {
     const init = [{ data: 0 }]
 

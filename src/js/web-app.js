@@ -1,5 +1,3 @@
-/* globals Utils, define */
-
 (function () {
   var mbox = function (x) {
     return x
@@ -22,9 +20,15 @@
       throw new Error('Improper Action: ' + action)
     }
 
-    var msg = action(model)
+    var pair = action(model)
+    var msg = pair[0]
+    var task = pair[1]
 
-    return [merge2(model, msg[0]), msg[1]]
+    if (Object.keys(msg).length === 0) {
+      return [model, task]
+    }
+
+    return [merge2(model, msg), task]
   }
 
   function start (config) {
@@ -58,10 +62,12 @@
   }
 
   if (typeof exports === 'object') {
-    module.export = WebApp
+    module.exports = WebApp
   } else if (typeof define === 'function' && define.amd) {
     define(function () { return WebApp })
   } else {
     window.WebApp = WebApp
   }
 }())
+
+/* globals define */
