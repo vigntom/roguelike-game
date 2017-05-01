@@ -1,0 +1,51 @@
+$color-white: #fff;
+$color-wall: #afafaf;
+$color-player: #d06fff;
+$color-enemy: #ff0000;;
+$color-weapon: #7991ec;
+$color-health: #80af13;
+$color-space: #fff;
+
+.game {
+  text-align: center;
+}
+
+.dangeon {
+  display: inline-block;
+  margin-top: 50px;
+}
+
+.dangeon-row {
+  height: 20px;
+}
+
+.dangeon-cell {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  background-color: $color-white;
+}
+
+.cell-wall {
+  background-color: $color-wall;
+}
+
+.cell-player {
+  background-color: $color-player;
+}
+
+.cell-enemy {
+  background-color: $color-enemy;
+}
+
+.cell-weapon {
+  background-color: $color-weapon;
+}
+
+.cell-health {
+  background-color: $color-health;
+}
+
+.cell-space {
+  background-color: $color-space;
+}

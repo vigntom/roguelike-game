@@ -1,3 +1,5 @@
+/* globals React, ReactDOM */
+
 import WebApp from './web-app'
 import Utils from './utils'
 
@@ -12,12 +14,33 @@ function debug (message) {
   const { compose } = Utils
 
   const rogueLikeGame = (function rogueLikeGame () {
-    const init = [{
+    const config = Object.freeze({
+      x: { name: 'cell-wall', output: ' ' },
+      p: { name: 'cell-player', output: ' ' },
+      e: { name: 'cell-enemy', output: ' ' },
+      w: { name: 'cell-weapon', output: ' ' },
+      h: { name: 'cell-health', output: ' ' },
+      0: { name: 'cell-space', output: ' ' }
+    })
 
+    const init = [{
+      dangeon: [
+        'xxxxxxxxxxxxxxxxxxxxxxxxxx',
+        'x0h000000xxx000000000h000x',
+        'x00000000xxxxx00000000000x',
+        'x0000000000xxx0xx0000e000x',
+        'x0000000000x000xxxxxxxxxxx',
+        'x00000000xxx0xxxxxxxxxxxxx',
+        'x000000000000000000000000x',
+        'x00000000x000000p000e0000x',
+        'x00w00000x000000000000h00x',
+        'xxxxxxxxxxxxxxxxxxxxxxxxxx'
+      ]
     }]
 
     const actions = (function actions () {
       return {
+        noop: () => [{}]
       }
     }())
 
@@ -26,8 +49,21 @@ function debug (message) {
       const renderer = el => ReactDOM.render(el, root$)
 
       const app = (function app () {
-        function App (data) {
-          return h('div')
+        function App ({ dangeon }) {
+          return h('div', { className: 'game' },
+            h('div', { className: 'dangeon' },
+              dangeon.map((row, rowId) => (
+                h('div', { className: 'dangeon-row', key: rowId },
+                  Array.from(row).map((cell, cellId) => (
+                    h('div', {
+                      className: ['dangeon-cell', config[cell].name].join(' '),
+                      key: cellId
+                    }, config[cell].output)
+                  ))
+                )
+              ))
+            )
+          )
         }
 
         return { App }
@@ -60,5 +96,3 @@ function debug (message) {
     })
   }())
 }(document.getElementById('app-container')))
-
-/* globals React, ReactDOM */
