@@ -102,11 +102,21 @@ function debug (message) {
           const dangeon = next.dangeon
           const { x, y } = step(model.player)
 
-          if (dangeon[y][x] === config.space) {
-            next.player = Object.assign({}, model.player, { x, y })
+          const maybeHealthIndex = model.health.findIndex(
+            obj => obj.x === x && obj.y === y
+          )
+
+          if (maybeHealthIndex > -1) {
+            next.player.health += next.health[maybeHealthIndex].health
+            next.health = next.health.slice(0, maybeHealthIndex).concat(next.health.slice(maybeHealthIndex + 1))
           }
 
-          return [next]
+          if (dangeon[y][x] === config.space) {
+            next.player = Object.assign({}, model.player, { x, y })
+            return [next]
+          }
+
+          return [{}]
         }
       }
 
@@ -183,6 +193,10 @@ function debug (message) {
       function reform (model) {
         function dangeonUpdate (position, value) {
           if (Array.isArray(position)) {
+            if (position.length === 0) {
+              return Utils.identity
+            }
+
             return compose.apply(
               undefined,
               position.map(
