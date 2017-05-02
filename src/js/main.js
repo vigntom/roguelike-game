@@ -26,14 +26,43 @@ function debug (message) {
       e: 'cell-enemy',
       w: 'cell-weapon',
       h: 'cell-health',
-      0: 'cell-space'
+      0: 'cell-space',
+      stick: { power: 5 },
+      cane: { power: 10 },
+      'bone knife': { power: 15 },
+      'copper dagger': { power: 20 },
+      'bronze ax': { power: 25 },
+      'simple sword': { power: 30 }
     })
 
     const init = [{
-      player: { x: 17, y: 7 },
-      enemy: [{ x: 21, y: 3 }, { x: 15, y: 7 }],
-      weapon: [{ x: 8, y: 3 }],
-      health: [{ x: 1, y: 2 }, { x: 18, y: 3 }, { x: 19, y: 8 }],
+      player: {
+        x: 17,
+        y: 7,
+        health: 100,
+        power: 10,
+        level: 1,
+        experience: 0,
+        weapon: 'stick'
+      },
+
+      enemy: [
+        { x: 21, y: 3, power: 4, health: 20 },
+        { x: 15, y: 7, power: 5, health: 30 }
+      ],
+
+      weapon: [
+        { x: 8, y: 3, name: 'cane' }
+      ],
+
+      health: [
+        { x: 1, y: 2, health: 20 },
+        { x: 18, y: 3, health: 20 },
+        { x: 19, y: 8, health: 15 }
+      ],
+
+      floor: 1,
+
       dangeon: [
         'xxxxxxxxxxxxxxxxxxxxxxxxxx',
         'x00000000xxx0000000000000x',
@@ -74,7 +103,7 @@ function debug (message) {
           const { x, y } = step(model.player)
 
           if (dangeon[y][x] === config.space) {
-            next.player = { x, y }
+            next.player = Object.assign({}, model.player, { x, y })
           }
 
           return [next]
@@ -103,10 +132,36 @@ function debug (message) {
       document.body.addEventListener('keydown', keyDownHandler)
 
       const app = (function app () {
-        function App ({ dangeon }) {
+        function App ({ dangeon, player, floor }) {
           return h('div', {
             className: 'game'
           },
+            h('div', { className: 'info' },
+              h('div', { className: 'info-item' },
+                h('h2', {}, 'Health: '),
+                h('p', {}, player.health)
+              ),
+              h('div', { className: 'info-item' },
+                h('h2', {}, 'Weapon: '),
+                h('p', {}, player.weapon)
+              ),
+              h('div', { className: 'info-item' },
+                h('h2', {}, 'Power: '),
+                h('p', {}, (player.power + config[player.weapon].power).toString())
+              ),
+              h('div', { className: 'info-item' },
+                h('h2', {}, 'Level: '),
+                h('p', {}, player.level.toString())
+              ),
+              h('div', { className: 'info-item' },
+                h('h2', {}, 'Experience: '),
+                h('p', {}, player.experience.toString())
+              ),
+              h('div', { className: 'info-item' },
+                h('h2', {}, 'Floor: '),
+                h('p', {}, floor.toString())
+              )
+            ),
             h('div', { className: 'dangeon' },
               dangeon.map((row, rowId) => (
                 h('div', { className: 'dangeon-row', key: rowId },
@@ -148,19 +203,25 @@ function debug (message) {
           }
         }
 
-        return compose(
+        const dangeon = compose(
           dangeonUpdate(model.health, config.health),
           dangeonUpdate(model.weapon, config.weapon),
           dangeonUpdate(model.enemy, config.enemy),
           dangeonUpdate(model.player, config.player)
         )(model.dangeon)
+
+        return {
+          player: model.player,
+          floor: model.floor,
+          dangeon
+        }
       }
 
       return function render (model) {
-        const dangeon = reform(model)
+        const reflect = reform(model)
         const { App } = app
 
-        return renderer(h(App, { dangeon }))
+        return renderer(h(App, reflect))
       }
     }
 

@@ -6,13 +6,16 @@ $color-weapon: #7991ec;
 $color-health: #80af13;
 $color-space: #fff;
 
+$std-offset: 12px;
+$half-offset: $std-offset / 2;
+$fourth-offset: $std-offset / 4;
+
 .game {
   text-align: center;
 }
 
 .dangeon {
   display: inline-block;
-  margin-top: 50px;
 }
 
 .dangeon-row {
@@ -48,4 +51,21 @@ $color-space: #fff;
 
 .cell-space {
   background-color: $color-space;
+}
+
+.info-item {
+  display: inline-block;
+  margin: $half-offset;
+
+  h2 {
+    display: inline-block;
+    margin: $fourth-offset;
+    font-size: 12px;
+  }
+
+  p {
+    display: inline-block;
+    margin: $half-offset;
+    font-size: 12px;
+  }
 }
