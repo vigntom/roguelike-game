@@ -41,10 +41,21 @@
     return data
   }
 
+  function clone (x) {
+    if (Array.isArray(x)) {
+      return x.concat()
+    }
+
+    if (typeof x === 'object') {
+      return Object.assign({}, x)
+    }
+  }
+
   var Utils = {
     identity: identity,
     compose: compose,
-    range: range
+    range: range,
+    clone: clone
   }
 
   if (typeof exports === 'object') {
