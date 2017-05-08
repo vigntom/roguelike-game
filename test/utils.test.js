@@ -88,27 +88,7 @@
       )
     })
 
-    QUnit.module('clone', () => {
-      const { clone } = Utils
-
-      test('can clone array',
-        function (assert) {
-          const testArray = [1, 2]
-
-          assert.notStrictEqual(clone(testArray), testArray)
-          assert.deepEqual(clone(testArray), testArray)
-        }
-      )
-
-      test('can clone object',
-        function (assert) {
-          const testObj = { a: 1 }
-
-          assert.notStrictEqual(clone(testObj), testObj)
-          assert.deepEqual(clone(testObj), testObj)
-        }
-      )
-    })
+    QUnit.module('update')
   })
 }())
 

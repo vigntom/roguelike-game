@@ -13,102 +13,118 @@ function debug (message) {
 (function application (root$) {
   const { compose } = Utils
 
-  function rogueLikeGame (address) {
-    const config = Object.freeze({
-      objects: {
-        wall: 'x',
-        player: 'p',
-        enemy: 'e',
-        weapon: 'w',
-        health: 'h',
-        space: '0'
-      },
-      marks: {
-        x: 'cell-wall',
-        p: 'cell-player',
-        e: 'cell-enemy',
-        w: 'cell-weapon',
-        h: 'cell-health',
-        0: 'cell-space'
-      },
-      weapons: {
-        noWeapon: { power: 0, sd: 0.3 },
-        stick: { power: 5, sd: 0.2 },
-        cane: { power: 10, sd: 0.15 },
-        'bone knife': { power: 15, sd: 0.13 },
-        'copper dagger': { power: 20, sd: 0.1 },
-        'bronze ax': { power: 25, sd: 0.08 },
-        'simple sword': { attack: 30, sd: 0.05 }
-      },
-      levels: {
-        '1': { power: 10, health: 100, breakpoint: 20 },
-        '2': { power: 15, health: 150, breakpoint: 40 },
-        '3': { power: 20, health: 200, breakpoint: 60 },
-        '4': { power: 25, health: 250, breakpoint: 80 }
-      },
-      enemies: {
-        goblin: {
-          level: 1,
-          power: 5,
-          value: 10,
-          weapon: 'stick'
-        },
-        skeleton: {
-          level: 2,
-          power: 10,
-          value: 20,
-          weapon: 'cane'
-        },
-        gnoll: {
-          level: 3,
-          power: 15,
-          value: 35,
-          weapon: 'copper dagger'
-        },
-        dwarf: {
-          level: 4,
-          power: 20,
-          value: 40,
-          weapon: 'bronze ax'
-        },
-        boss: {
-          level: 5,
-          power: 50,
-          value: 100,
-          weapon: 'simple sword'
-        }
-      }
-    })
-
-    const init = [{
-      player: {
-        x: 17,
-        y: 7,
+  const config = Object.freeze({
+    objects: {
+      wall: 'x',
+      player: 'p',
+      enemy: 'e',
+      weapon: 'w',
+      health: 'h',
+      space: '0'
+    },
+    marks: {
+      x: 'cell-wall',
+      p: 'cell-player',
+      e: 'cell-enemy',
+      w: 'cell-weapon',
+      h: 'cell-health',
+      0: 'cell-space'
+    },
+    weapons: {
+      noWeapon: { power: 0, sd: 0.3 },
+      stick: { power: 5, sd: 0.2 },
+      cane: { power: 10, sd: 0.15 },
+      'bone knife': { power: 15, sd: 0.13 },
+      'copper dagger': { power: 20, sd: 0.1 },
+      'bronze ax': { power: 25, sd: 0.08 },
+      'simple sword': { attack: 30, sd: 0.05 }
+    },
+    levels: {
+      '1': { power: 10, health: 100, breakpoint: 20 },
+      '2': { power: 15, health: 150, breakpoint: 40 },
+      '3': { power: 20, health: 200, breakpoint: 60 },
+      '4': { power: 25, health: 250, breakpoint: 80 }
+    },
+    enemies: {
+      goblin: {
         level: 1,
-        health: 100,
-        power: 10,
-        experience: 0,
+        power: 5,
+        value: 10,
         weapon: 'stick'
       },
+      skeleton: {
+        level: 2,
+        power: 10,
+        value: 20,
+        weapon: 'cane'
+      },
+      gnoll: {
+        level: 3,
+        power: 15,
+        value: 35,
+        weapon: 'copper dagger'
+      },
+      dwarf: {
+        level: 4,
+        power: 20,
+        value: 40,
+        weapon: 'bronze ax'
+      },
+      boss: {
+        level: 5,
+        power: 50,
+        value: 100,
+        weapon: 'simple sword'
+      }
+    }
+  })
 
-      enemy: [
-        { x: 21, y: 3, health: 95, type: 'goblin' },
-        { x: 15, y: 7, health: 90, type: 'goblin' }
-      ],
+  const Point = (function Point () {
+    const moveUp = p => create(p.x, p.y - 1)
+    const moveDown = p => create(p.x, p.y + 1)
+    const moveLeft = p => create(p.x - 1, p.y)
+    const moveRight = p => create(p.x + 1, p.y)
 
-      weapon: [
-        { x: 8, y: 3, name: 'cane' }
-      ],
+    function create (x, y) {
+      return { x, y }
+    }
 
-      health: [
-        { x: 1, y: 2, health: 20 },
-        { x: 18, y: 3, health: 20 },
-        { x: 19, y: 8, health: 15 }
-      ],
+    function equals (p1, p2) {
+      return p1.x === p2.x && p1.y === p2.y
+    }
 
-      floor: 1,
+    return {
+      create,
+      equals,
+      moveUp,
+      moveDown,
+      moveLeft,
+      moveRight
+    }
+  }())
 
-      dangeon: [
+  const Cell = (function Cell () {
+    const isWall = cell => cell === config.objects.wall
+
+    function create (value) {
+      const valueExists = Object.keys(config.objects).some(x => x === value)
+
+      if (valueExists === undefined) {
+        throw new Error(`Can't create Cell with value: #{value} !`)
+      }
+
+      return value
+    }
+
+    return {
+      create,
+      isWall
+    }
+  }())
+
+  const Dangeon = (function Dangeon () {
+    function create (rows, cols) {
+      const testDangeon = [
         'xxxxxxxxxxxxxxxxxxxxxxxxxx',
         'x00000000xxx0000000000000x',
         'x00000000xxxxx00000000000x',
@@ -119,8 +135,90 @@ function debug (message) {
         'x00000000x000000000000000x',
         'x00000000x000000000000000x',
         'xxxxxxxxxxxxxxxxxxxxxxxxxx'
-      ].map(str => Array.from(str))
-    }]
+      ]
+
+      return testDangeon.map(str => {
+        const row = Array.from(str)
+        return row.map(value => Cell.create(value))
+      })
+    }
+
+    function batch (fn) {
+      return (points, cell) =>
+        dangeon => points.reduce((accDangeon, point) => (
+          fn(point, cell)(accDangeon)
+        ), dangeon)
+    }
+
+    function update (point, cell) {
+      return function (dangeon) {
+        const pointIsWall = compose(Cell.isWall, get(point))
+
+        if (pointIsWall(dangeon)) {
+          throw new Error(`Position for value '#{value}' is occupied by a wall.`)
+        }
+
+        return set(point, cell, dangeon)
+      }
+    }
+
+    function get (pos) {
+      return dangeon => dangeon[pos.y][pos.x]
+    }
+
+    function set (pos, cell, dangeon) {
+      const dangeonCopy = dangeon.concat()
+      const row = dangeon[pos.y].concat()
+
+      row[pos.x] = cell
+      dangeonCopy[pos.y] = row
+
+      return dangeonCopy
+    }
+
+    return {
+      create,
+      get,
+      set,
+      update,
+      batch
+    }
+  }())
+
+  function rogueLikeGame (address) {
+    function createDangeon () {
+      const initialState = {
+        player: {
+          place: Point.create(17, 7),
+          level: 1,
+          health: 100,
+          power: 10,
+          experience: 0,
+          weapon: 'stick'
+        },
+
+        enemy: [
+          { place: Point.create(21, 3), health: 95, type: 'goblin' },
+          { place: Point.create(15, 7), health: 90, type: 'goblin' }
+        ],
+
+        weapon: [
+          { place: Point.create(8, 3), name: 'cane' }
+        ],
+
+        health: [
+          { place: Point.create(1, 2), health: 20 },
+          { place: Point.create(18, 3), health: 20 },
+          { place: Point.create(19, 8), health: 15 }
+        ],
+
+        floor: 1,
+
+        dangeon: Dangeon.create()
+      }
+
+      return [initialState]
+    }
 
     const tasks = (function tasks () {
       function randomDamage ({ power, weapon }) {
@@ -148,20 +246,15 @@ function debug (message) {
       const noop = () => [{}]
       const keyMoveMap = new Map()
 
-      const moveUp = ({ x, y }) => ({ x, y: y - 1 })
-      const moveDown = ({ x, y }) => ({ x, y: y + 1 })
-      const moveLeft = ({ x, y }) => ({ x: x - 1, y })
-      const moveRight = ({ x, y }) => ({ x: x + 1, y })
+      keyMoveMap.set('ArrowUp', move(Point.moveUp))
+      keyMoveMap.set('ArrowDown', move(Point.moveDown))
+      keyMoveMap.set('ArrowLeft', move(Point.moveLeft))
+      keyMoveMap.set('ArrowRight', move(Point.moveRight))
 
-      keyMoveMap.set('ArrowUp', move(moveUp))
-      keyMoveMap.set('ArrowDown', move(moveDown))
-      keyMoveMap.set('ArrowLeft', move(moveLeft))
-      keyMoveMap.set('ArrowRight', move(moveRight))
-
-      keyMoveMap.set('w', move(moveUp))
-      keyMoveMap.set('s', move(moveDown))
-      keyMoveMap.set('a', move(moveLeft))
-      keyMoveMap.set('d', move(moveRight))
+      keyMoveMap.set('w', move(Point.moveUp))
+      keyMoveMap.set('s', move(Point.moveDown))
+      keyMoveMap.set('a', move(Point.moveLeft))
+      keyMoveMap.set('d', move(Point.moveRight))
 
       function simulateAttack (enemyId) {
         return function ({ player, enemy }) {
@@ -197,13 +290,12 @@ function debug (message) {
         return function (model) {
           const next = Object.assign({}, model)
           const dangeon = next.dangeon
-          const { x, y } = step(model.player)
-          const moveTo = step(model.player)
+          const moveTo = step(model.player.place)
           const findId = findPositionId(moveTo)
 
-          function findPositionId ({ x, y }) {
+          function findPositionId (pos) {
             return function (list) {
-              return list.findIndex(obj => obj.x === x && obj.y === y)
+              return list.findIndex(({ place }) => Point.equals(pos, place))
             }
           }
 
@@ -214,6 +306,8 @@ function debug (message) {
             next.health = next.health
               .slice(0, maybeHealthId)
               .concat(next.health.slice(maybeHealthId + 1))
+
+            return makeStep()
           }
 
           const maybeWeaponId = findId(model.weapon)
@@ -223,6 +317,8 @@ function debug (message) {
             next.weapon = next.weapon
               .slice(0, maybeWeaponId)
               .concat(next.weapon.slice(maybeWeaponId + 1))
+
+            return makeStep()
           }
 
           const maybeEnemyId = findId(model.enemy)
@@ -237,8 +333,13 @@ function debug (message) {
             ]
           }
 
-          if (dangeon[y][x] === config.objects.space) {
-            next.player = Object.assign({}, model.player, { x, y })
+          if (dangeon[moveTo.y][moveTo.x] === config.objects.space) {
+            return makeStep()
+          }
+
+          function makeStep () {
+            next.player = Object.assign({}, model.player)
+            next.player.place = Object.assign({}, model.player.place, moveTo)
             return [next]
           }
 
@@ -320,40 +421,21 @@ function debug (message) {
       }())
 
       function reform (model) {
-        function dangeonUpdate (position, value) {
-          if (Array.isArray(position)) {
-            if (position.length === 0) {
-              return Utils.identity
-            }
+        const { health, weapon, enemy, player } = model
+        const conf = config.objects
 
-            return function (dangeon) {
-              return position.reduce((dang, pos) => (
-                dangeonUpdate(pos, value)(dang)
-              ), dangeon)
-            }
-          }
-
-          return function (dangeon) {
-            const { x, y } = position
-            const data = dangeon.concat()
-            const row = data[y].concat()
-
-            row[x] = value
-            data[y] = row
-
-            return data
-          }
-        }
+        const places = list => list.map(obj => obj.place)
+        const batchUpdate = Dangeon.batch(Dangeon.update)
 
         const dangeon = compose(
-          dangeonUpdate(model.health, config.objects.health),
-          dangeonUpdate(model.weapon, config.objects.weapon),
-          dangeonUpdate(model.enemy, config.objects.enemy),
-          dangeonUpdate(model.player, config.objects.player)
+          batchUpdate(places(health), conf.health),
+          batchUpdate(places(weapon), conf.weapon),
+          batchUpdate(places(enemy), conf.enemy),
+          Dangeon.update(player.place, conf.player)
         )
 
         return {
-          player: model.player,
+          player,
           floor: model.floor,
           dangeon: dangeon(model.dangeon)
         }
@@ -368,18 +450,12 @@ function debug (message) {
     }
 
     return {
-      init,
+      init: createDangeon(),
       render: view()
     }
   }
 
   return (function start () {
-    // const { init, view } = rogueLikeGame(WebApp.send)
-
-    // return WebApp.start({
-    //   init,
-    //   render: view()
-    // })
     return compose(
       WebApp.start,
       rogueLikeGame
