@@ -1,7 +1,6 @@
-/* globals React, ReactDOM */
+/* globals R, React, ReactDOM */
 
 import WebApp from './web-app'
-import Utils from './utils'
 
 function debug (message) {
   return function (x) {
@@ -11,25 +10,31 @@ function debug (message) {
 }
 
 (function application (root$) {
-  const { compose } = Utils
-
-  const config = Object.freeze({
+  const config = {
+    size: {
+      rows: 10,
+      cols: 26
+    },
     objects: {
       wall: 'x',
       player: 'p',
       enemy: 'e',
       weapon: 'w',
       health: 'h',
-      space: '0'
+      space: 'o',
+      exit: 't'
     },
+
     marks: {
       x: 'cell-wall',
       p: 'cell-player',
       e: 'cell-enemy',
       w: 'cell-weapon',
       h: 'cell-health',
-      0: 'cell-space'
+      o: 'cell-space',
+      t: 'cell-exit'
     },
+
     weapons: {
       noWeapon: { power: 0, sd: 0.3 },
       stick: { power: 5, sd: 0.2 },
@@ -39,12 +44,14 @@ function debug (message) {
       'bronze ax': { power: 25, sd: 0.08 },
       'simple sword': { attack: 30, sd: 0.05 }
     },
+
     levels: {
       '1': { power: 10, health: 100, breakpoint: 20 },
       '2': { power: 15, health: 150, breakpoint: 40 },
       '3': { power: 20, health: 200, breakpoint: 60 },
       '4': { power: 25, health: 250, breakpoint: 80 }
     },
+
     enemies: {
       goblin: {
         level: 1,
@@ -52,24 +59,28 @@ function debug (message) {
         value: 10,
         weapon: 'stick'
       },
+
       skeleton: {
         level: 2,
         power: 10,
         value: 20,
         weapon: 'cane'
       },
+
       gnoll: {
         level: 3,
         power: 15,
         value: 35,
         weapon: 'copper dagger'
       },
+
       dwarf: {
         level: 4,
         power: 20,
         value: 40,
         weapon: 'bronze ax'
       },
+
       boss: {
         level: 5,
         power: 50,
@@ -77,7 +88,22 @@ function debug (message) {
         weapon: 'simple sword'
       }
     }
-  })
+  }
+
+  const Stat = (function Stat () {
+    function weapon (type) {
+      return config.weapons[type]
+    }
+
+    function enemy (type) {
+      return config.enemies[type]
+    }
+
+    return {
+      weapon,
+      enemy
+    }
+  }())
 
   const Point = (function Point () {
     const moveUp = p => create(p.x, p.y - 1)
@@ -86,16 +112,17 @@ function debug (message) {
     const moveRight = p => create(p.x + 1, p.y)
 
     function create (x, y) {
-      return { x, y }
-    }
+      const size = config.size
+      if (y < size.rows && x < size.cols) {
+        const id = y * size.cols + x
+        return { x, y, id }
+      }
 
-    function equals (p1, p2) {
-      return p1.x === p2.x && p1.y === p2.y
+      throw new Error(`Point 'x:${x}, y:${y}' is out of the borders`)
     }
 
     return {
       create,
-      equals,
       moveUp,
       moveDown,
       moveLeft,
@@ -105,11 +132,12 @@ function debug (message) {
 
   const Cell = (function Cell () {
     const isWall = cell => cell === config.objects.wall
+    const isSpace = cell => cell === config.objects.space
 
     function create (value) {
-      const valueExists = Object.keys(config.objects).some(x => x === value)
+      const valueExists = R.compose(R.any(x => x === value), R.keys)
 
-      if (valueExists === undefined) {
+      if (valueExists(config.objects) === undefined) {
         throw new Error(`Can't create Cell with value: #{value} !`)
       }
 
@@ -118,7 +146,8 @@ function debug (message) {
 
     return {
       create,
-      isWall
+      isWall,
+      isSpace
     }
   }())
 
@@ -126,36 +155,34 @@ function debug (message) {
     function create (rows, cols) {
       const testDangeon = [
         'xxxxxxxxxxxxxxxxxxxxxxxxxx',
-        'x00000000xxx0000000000000x',
-        'x00000000xxxxx00000000000x',
-        'x0000000000xxx0xx00000000x',
-        'x0000000000x000xxxxxxxxxxx',
-        'x00000000xxx0xxxxxxxxxxxxx',
-        'x000000000000000000000000x',
-        'x00000000x000000000000000x',
-        'x00000000x000000000000000x',
+        'xooooooooxxxooooooooooooox',
+        'xooooooooxxxxxooooooooooox',
+        'xxxooooooooxxxoxxoooooooox',
+        'xxoooooooooxoooxxxxxxxxxxx',
+        'xxxooooooxxxoxxxxxxxxxxxxx',
+        'xxxxxoooooooooooooooooooox',
+        'xoooxooooxooooooooooooooox',
+        'xooooooooxooooooooooooooox',
         'xxxxxxxxxxxxxxxxxxxxxxxxxx'
       ]
 
-      return testDangeon.map(str => {
-        const row = Array.from(str)
-        return row.map(value => Cell.create(value))
-      })
+      const fromStrToCell = R.compose(R.map(Cell.create), R.split(''))
+      return R.map(fromStrToCell, testDangeon)
     }
 
     function batch (fn) {
       return (points, cell) =>
-        dangeon => points.reduce((accDangeon, point) => (
+        R.reduce((accDangeon, point) => (
           fn(point, cell)(accDangeon)
-        ), dangeon)
+        ), R.__, points)
     }
 
     function update (point, cell) {
       return function (dangeon) {
-        const pointIsWall = compose(Cell.isWall, get(point))
+        const pointIsWall = R.compose(Cell.isWall, get(point))
 
         if (pointIsWall(dangeon)) {
-          throw new Error(`Position for value '#{value}' is occupied by a wall.`)
+          throw new Error(`Position 'x:${point.x}, y:${point.y}' is occupied by a wall.`)
         }
 
         return set(point, cell, dangeon)
@@ -167,13 +194,22 @@ function debug (message) {
     }
 
     function set (pos, cell, dangeon) {
-      const dangeonCopy = dangeon.concat()
+      const result = dangeon.concat()
       const row = dangeon[pos.y].concat()
 
       row[pos.x] = cell
-      dangeonCopy[pos.y] = row
+      result[pos.y] = row
 
-      return dangeonCopy
+      return result
+    }
+
+    function itemMap (list) {
+      const result = {}
+      list.forEach(obj => {
+        result[obj.place.id] = obj
+      })
+
+      return result
     }
 
     return {
@@ -181,7 +217,29 @@ function debug (message) {
       get,
       set,
       update,
-      batch
+      batch,
+      itemMap,
+      itemPlaces: R.compose(R.map(R.prop('place')), R.values)
+    }
+  }())
+
+  const Weapon = (function Weapon () {
+    function minDamage (weapon) {
+      return Math.ceil(weapon.power * (1 - 3 * weapon.sd))
+    }
+
+    function maxDamage (weapon) {
+      return Math.floor(weapon.power * (1 + 3 * weapon.sd))
+    }
+
+    function create (type) {
+      return config.weapons[type]
+    }
+
+    return {
+      create,
+      minDamage,
+      maxDamage
     }
   }())
 
@@ -197,43 +255,49 @@ function debug (message) {
           weapon: 'stick'
         },
 
-        enemy: [
+        enemy: Dangeon.itemMap([
           { place: Point.create(21, 3), health: 95, type: 'goblin' },
-          { place: Point.create(15, 7), health: 90, type: 'goblin' }
-        ],
+          { place: Point.create(15, 7), health: 90, type: 'goblin' },
+          { place: Point.create(1, 7), health: 90, type: 'goblin' }
+        ]),
 
-        weapon: [
-          { place: Point.create(8, 3), name: 'cane' }
-        ],
+        weapon: Dangeon.itemMap([
+          { place: Point.create(8, 3), name: 'cane' },
+          { place: Point.create(16, 1), name: 'bone knife' }
+        ]),
 
-        health: [
+        health: Dangeon.itemMap([
           { place: Point.create(1, 2), health: 20 },
           { place: Point.create(18, 3), health: 20 },
           { place: Point.create(19, 8), health: 15 }
-        ],
+        ]),
 
         floor: 1,
 
-        dangeon: Dangeon.create()
+        dangeon: Dangeon.create(10, 26),
+
+        rows: 10,
+        cols: 26
       }
 
       return [initialState]
     }
 
     const tasks = (function tasks () {
-      function randomDamage ({ power, weapon }) {
-        const weaponPower = config.weapons[weapon].power
-        const sd = config.weapons[weapon].sd
-        const min = Math.ceil(weaponPower * (1 - 3 * sd))
-        const max = Math.floor(weaponPower * (1 + 3 * sd))
+      function randomDamage (damager) {
+        const weapon = Weapon.create(damager.weapon)
+        const min = Weapon.minDamage(weapon)
+        const max = Weapon.maxDamage(weapon)
 
-        return power + min + Math.floor(Math.random() * (max - min + 1))
+        return damager.power + min + Math.floor(Math.random() * (max - min + 1))
       }
 
       function generateDamage ({ player, enemy }, keeper) {
+        const enemyDamage = R.compose(randomDamage, Stat.enemy)
+
         return () => keeper({
           player: randomDamage(player),
-          enemy: randomDamage(config.enemies[enemy.type])
+          enemy: enemyDamage(enemy.type)
         })
       }
 
@@ -256,91 +320,110 @@ function debug (message) {
       keyMoveMap.set('a', move(Point.moveLeft))
       keyMoveMap.set('d', move(Point.moveRight))
 
-      function simulateAttack (enemyId) {
-        return function ({ player, enemy }) {
+      const makeStep = (place, model) => (
+        R.assocPath(['player', 'place'], place, model)
+      )
+
+      function analyzeAttack (place, model) {
+        const id = place.id
+        const enemy = model.enemy[id]
+
+        if (enemy.health <= 0) {
+          const player = model.player
+          const expAfter = player.experience + Stat.enemy(enemy.type).value
+          const level = config.levels[model.player.level]
+
+          const result = R.compose(
+            R.assocPath(['player', 'experience'], expAfter),
+            R.dissocPath(['enemy', id])
+          )(model)
+
+          if (result.player.experience >= level.breakpoint) {
+            result.player.level += 1
+            result.player.experience = result.player.experience - level.breakpoint
+          }
+
+          return [makeStep(place, result)]
+        }
+
+        return [model]
+      }
+
+      function simulateAttack (place) {
+        return function (damage) {
           return function (model) {
-            const next = Object.assign({}, model)
+            const id = place.id
+            const playerHealth = model.player.health
+            const enemyHealth = model.enemy[id].health
 
-            next.player = Object.assign({}, model.player)
-            next.enemy = model.enemy.concat()
-            next.enemy[enemyId] = Object.assign({}, model.enemy[enemyId])
+            const playerRest = playerHealth - damage.enemy
+            const enemyRest = enemyHealth - damage.player
 
-            next.player.health -= enemy
-            next.enemy[enemyId].health -= player
+            const simulate = R.compose(
+              R.assocPath(['player', 'health'], playerRest),
+              R.assocPath(['enemy', id, 'health'], enemyRest)
+            )
 
-            if (next.enemy[enemyId].health <= 0) {
-              next.player.experience += config.enemies[next.enemy[enemyId].type].value
-
-              if (next.player.experience >= config.levels[next.player.level].breakpoint) {
-                next.player.level += 1
-                next.player.experience = 0
-              }
-
-              next.enemy = next.enemy
-                .slice(0, enemyId)
-                .concat(next.enemy.slice(enemyId + 1))
-            }
-
-            return [next]
+            return analyzeAttack(place, simulate(model))
           }
         }
       }
 
+      function takeHealth (place, model) {
+        const { player, health } = model
+        const id = place.id
+
+        const resultHealth = player.health + health[id].health
+        const take = R.compose(
+          R.assocPath(['player', 'health'], resultHealth),
+          R.dissocPath(['health', id])
+        )
+
+        return [makeStep(place, take(model))]
+      }
+
+      function takeWeapon (place, model) {
+        const { player, weapon } = model
+        const id = place.id
+
+        if (Stat.weapon(player.weapon).power < Stat.weapon(weapon[id].name).power) {
+          const take = R.compose(
+            R.assocPath(['player', 'weapon'], weapon[id].name),
+            R.dissocPath(['weapon', id])
+          )
+
+          return [makeStep(place, take(model))]
+        }
+
+        return [makeStep(place, R.dissocPath(['weapon', id], model))]
+      }
+
+      function attackEnemy (place, model) {
+        const { player, enemy } = model
+        const id = place.id
+
+        return [
+          {},
+          tasks.generateDamage({
+            player,
+            enemy: enemy[id]
+          }, R.compose(address, simulateAttack(place)))
+        ]
+      }
+
       function move (step) {
         return function (model) {
-          const next = Object.assign({}, model)
-          const dangeon = next.dangeon
-          const moveTo = step(model.player.place)
-          const findId = findPositionId(moveTo)
+          const { player, enemy, health, weapon } = model
+          const moveTo = step(player.place)
+          const id = moveTo.id
+          const isPlaceSpace = R.compose(Cell.isSpace, Dangeon.get(moveTo))
 
-          function findPositionId (pos) {
-            return function (list) {
-              return list.findIndex(({ place }) => Point.equals(pos, place))
-            }
-          }
+          if (enemy[id]) { return attackEnemy(moveTo, model) }
+          if (weapon[id]) { return takeWeapon(moveTo, model) }
+          if (health[id]) { return takeHealth(moveTo, model) }
 
-          const maybeHealthId = findId(model.health)
-
-          if (maybeHealthId > -1) {
-            next.player.health += next.health[maybeHealthId].health
-            next.health = next.health
-              .slice(0, maybeHealthId)
-              .concat(next.health.slice(maybeHealthId + 1))
-
-            return makeStep()
-          }
-
-          const maybeWeaponId = findId(model.weapon)
-
-          if (maybeWeaponId > -1) {
-            next.player.weapon = next.weapon[maybeWeaponId].name
-            next.weapon = next.weapon
-              .slice(0, maybeWeaponId)
-              .concat(next.weapon.slice(maybeWeaponId + 1))
-
-            return makeStep()
-          }
-
-          const maybeEnemyId = findId(model.enemy)
-
-          if (maybeEnemyId > -1) {
-            return [
-              {},
-              tasks.generateDamage({
-                player: model.player,
-                enemy: model.enemy[maybeEnemyId]
-              }, compose(address, simulateAttack(maybeEnemyId)))
-            ]
-          }
-
-          if (dangeon[moveTo.y][moveTo.x] === config.objects.space) {
-            return makeStep()
-          }
-
-          function makeStep () {
-            next.player = Object.assign({}, model.player)
-            next.player.place = Object.assign({}, model.player.place, moveTo)
-            return [next]
+          if (isPlaceSpace(model.dangeon)) {
+            return [makeStep(moveTo, model)]
           }
 
           return [{}]
@@ -371,7 +454,7 @@ function debug (message) {
       const app = (function app () {
         function App ({ dangeon, player, floor }) {
           const { health, power, level, experience } = player
-          const weapon = config.weapons[player.weapon].power
+          const weapon = Stat.weapon(player.weapon).power
 
           return h('div', {
             className: 'game'
@@ -383,7 +466,7 @@ function debug (message) {
               ),
               h('div', { className: 'info-item' },
                 h('h2', {}, 'Weapon: '),
-                h('p', {}, weapon)
+                h('p', {}, player.weapon)
               ),
               h('div', { className: 'info-item' },
                 h('h2', {}, 'Power: '),
@@ -403,16 +486,19 @@ function debug (message) {
               )
             ),
             h('div', { className: 'dangeon' },
-              dangeon.map((row, rowId) => (
+              R.map(rowId => (
                 h('div', { className: 'dangeon-row', key: rowId },
-                  Array.from(row).map((cell, cellId) => (
+                  R.map(cellId => (
                     h('div', {
-                      className: ['dangeon-cell', config.marks[cell]].join(' '),
+                      className: [
+                        'dangeon-cell',
+                        config.marks[dangeon[rowId][cellId]]
+                      ].join(' '),
                       key: cellId
                     })
-                  ))
+                  ), R.range(0, dangeon[rowId].length))
                 )
-              ))
+              ), R.range(0, dangeon.length))
             )
           )
         }
@@ -424,13 +510,12 @@ function debug (message) {
         const { health, weapon, enemy, player } = model
         const conf = config.objects
 
-        const places = list => list.map(obj => obj.place)
         const batchUpdate = Dangeon.batch(Dangeon.update)
 
-        const dangeon = compose(
-          batchUpdate(places(health), conf.health),
-          batchUpdate(places(weapon), conf.weapon),
-          batchUpdate(places(enemy), conf.enemy),
+        const dangeon = R.compose(
+          batchUpdate(Dangeon.itemPlaces(health), conf.health),
+          batchUpdate(Dangeon.itemPlaces(weapon), conf.weapon),
+          batchUpdate(Dangeon.itemPlaces(enemy), conf.enemy),
           Dangeon.update(player.place, conf.player)
         )
 
@@ -456,7 +541,7 @@ function debug (message) {
   }
 
   return (function start () {
-    return compose(
+    return R.compose(
       WebApp.start,
       rogueLikeGame
     )(WebApp.send)
