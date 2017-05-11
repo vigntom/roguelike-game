@@ -11,6 +11,7 @@ function debug (message) {
 
 (function application (root$) {
   const config = {
+    pause: 2000,
     size: {
       rows: 10,
       cols: 26
@@ -245,6 +246,7 @@ function debug (message) {
 
   function rogueLikeGame (address) {
     function createDangeon () {
+      console.log('call init')
       const initialState = {
         player: {
           place: Point.create(17, 7),
@@ -277,7 +279,8 @@ function debug (message) {
         dangeon: Dangeon.create(10, 26),
 
         rows: 10,
-        cols: 26
+        cols: 26,
+        gameOver: false
       }
 
       return [initialState]
@@ -295,14 +298,19 @@ function debug (message) {
       function generateDamage ({ player, enemy }, keeper) {
         const enemyDamage = R.compose(randomDamage, Stat.enemy)
 
-        return () => keeper({
+        return () => address(keeper({
           player: randomDamage(player),
           enemy: enemyDamage(enemy.type)
-        })
+        }))
+      }
+
+      function pause (delay, keeper) {
+        return () => setTimeout(() => address(keeper), delay)
       }
 
       return {
-        generateDamage
+        generateDamage,
+        pause
       }
     }())
 
@@ -324,12 +332,21 @@ function debug (message) {
         R.assocPath(['player', 'place'], place, model)
       )
 
+      const newGame = () => createDangeon()
+
       function analyzeAttack (place, model) {
         const id = place.id
         const enemy = model.enemy[id]
+        const player = model.player
+
+        if (player.health <= 0) {
+          return [
+            R.assoc('gameOver', true, model),
+            tasks.pause(config.pause, newGame)
+          ]
+        }
 
         if (enemy.health <= 0) {
-          const player = model.player
           const expAfter = player.experience + Stat.enemy(enemy.type).value
           const level = config.levels[model.player.level]
 
@@ -407,7 +424,7 @@ function debug (message) {
           tasks.generateDamage({
             player,
             enemy: enemy[id]
-          }, R.compose(address, simulateAttack(place)))
+          }, simulateAttack(place))
         ]
       }
 
@@ -418,6 +435,7 @@ function debug (message) {
           const id = moveTo.id
           const isPlaceSpace = R.compose(Cell.isSpace, Dangeon.get(moveTo))
 
+          if (model.gameOver) { return [{}] }
           if (enemy[id]) { return attackEnemy(moveTo, model) }
           if (weapon[id]) { return takeWeapon(moveTo, model) }
           if (health[id]) { return takeHealth(moveTo, model) }
@@ -452,13 +470,16 @@ function debug (message) {
       document.body.addEventListener('keydown', keyDownHandler)
 
       const app = (function app () {
-        function App ({ dangeon, player, floor }) {
+        function App ({ dangeon, player, floor, gameOver }) {
           const { health, power, level, experience } = player
           const weapon = Stat.weapon(player.weapon).power
 
           return h('div', {
             className: 'game'
           },
+            h('div', { className: 'game-state' + ' ' + (gameOver ? 'game-over' : 'game-ok') },
+              h('h2', {}, 'Game over!')
+            ),
             h('div', { className: 'info' },
               h('div', { className: 'info-item' },
                 h('h2', {}, 'Health: '),
@@ -507,7 +528,7 @@ function debug (message) {
       }())
 
       function reform (model) {
-        const { health, weapon, enemy, player } = model
+        const { health, weapon, enemy, player, gameOver } = model
         const conf = config.objects
 
         const batchUpdate = Dangeon.batch(Dangeon.update)
@@ -522,7 +543,8 @@ function debug (message) {
         return {
           player,
           floor: model.floor,
-          dangeon: dangeon(model.dangeon)
+          dangeon: dangeon(model.dangeon),
+          gameOver
         }
       }
 
