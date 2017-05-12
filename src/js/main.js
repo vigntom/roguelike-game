@@ -36,58 +36,46 @@ function debug (message) {
       t: 'cell-exit'
     },
 
+    floors: {
+      // '1': { rows: 30, cols: 90, enemies: [3, 5], weapon: 'cane', health: [5, 7] },
+      '1': { rows: 10, cols: 26, enemies: [3, 5], weapons: 1, health: [5, 7] },
+      '2': { rows: 60, cols: 120, enemies: [6, 10], weapons: 1, health: [8, 11] },
+      '3': { rows: 90, cols: 150, enemies: [9, 12], weapons: 1, health: [11, 15] },
+      '4': { rows: 120, cols: 180, enemies: [10, 15], weapons: 1, health: [13, 18] },
+      '5': { rows: 50, cols: 50, enemies: [0, 0], boss: 1, health: [3, 5], weapons: 1 }
+    },
+
     weapons: {
       noWeapon: { power: 0, sd: 0.3 },
       stick: { power: 5, sd: 0.2 },
-      cane: { power: 10, sd: 0.15 },
-      'bone knife': { power: 15, sd: 0.13 },
-      'copper dagger': { power: 20, sd: 0.1 },
-      'bronze ax': { power: 25, sd: 0.08 },
-      'simple sword': { attack: 30, sd: 0.05 }
+      cane: { level: '1', power: 10, sd: 0.15 },
+      'bone knife': { level: '2', power: 15, sd: 0.13 },
+      'copper dagger': { level: '3', power: 20, sd: 0.1 },
+      'bronze ax': { level: '4', power: 25, sd: 0.08 },
+      'simple sword': { level: '5', attack: 30, sd: 0.05 }
     },
 
     levels: {
-      '1': { power: 10, health: 100, breakpoint: 20 },
-      '2': { power: 15, health: 150, breakpoint: 40 },
-      '3': { power: 20, health: 200, breakpoint: 60 },
-      '4': { power: 25, health: 250, breakpoint: 80 }
+      '1': { power: 10, breakpoint: 20 },
+      '2': { power: 15, breakpoint: 40 },
+      '3': { power: 20, breakpoint: 60 },
+      '4': { power: 25, breakpoint: 80 }
     },
 
     enemies: {
-      goblin: {
-        level: 1,
-        power: 5,
-        value: 10,
-        weapon: 'stick'
-      },
+      goblin: { level: '1', power: 5, health: 75, value: 10, weapon: 'stick' },
+      skeleton: { level: '2', power: 10, health: 90, value: 20, weapon: 'cane' },
+      gnoll: { level: '3', power: 15, health: 110, value: 35, weapon: 'copper dagger' },
+      dwarf: { level: '4', power: 20, health: 125, value: 40, weapon: 'bronze ax' },
+      boss: { level: '5', power: 30, health: 200, value: 100, weapon: 'simple sword' }
+    },
 
-      skeleton: {
-        level: 2,
-        power: 10,
-        value: 20,
-        weapon: 'cane'
-      },
-
-      gnoll: {
-        level: 3,
-        power: 15,
-        value: 35,
-        weapon: 'copper dagger'
-      },
-
-      dwarf: {
-        level: 4,
-        power: 20,
-        value: 40,
-        weapon: 'bronze ax'
-      },
-
-      boss: {
-        level: 5,
-        power: 50,
-        value: 100,
-        weapon: 'simple sword'
-      }
+    health: {
+      'small potion': { level: '1', health: 25 },
+      'potion': { level: '2', health: 50 },
+      'medium potion': { level: '3', health: 75 },
+      'great potion': { level: '4', health: 90 },
+      'grand potion': { level: '5', health: 110 }
     }
   }
 
@@ -153,6 +141,8 @@ function debug (message) {
   }())
 
   const Dangeon = (function Dangeon () {
+    const itemPlaces = R.compose(R.map(R.prop('place')), R.values)
+
     function create (rows, cols) {
       const testDangeon = [
         'xxxxxxxxxxxxxxxxxxxxxxxxxx',
@@ -179,6 +169,8 @@ function debug (message) {
     }
 
     function update (point, cell) {
+      if (point === undefined) { return R.identity }
+
       return function (dangeon) {
         const pointIsWall = R.compose(Cell.isWall, get(point))
 
@@ -213,6 +205,20 @@ function debug (message) {
       return result
     }
 
+    function fill ({ health, weapon, enemy, player, dangeon }) {
+      const conf = config.objects
+      const batchUpdate = batch(update)
+
+      const fillDangeon = R.compose(
+        batchUpdate(itemPlaces(health), conf.health),
+        batchUpdate(itemPlaces(weapon), conf.weapon),
+        batchUpdate(itemPlaces(enemy), conf.enemy),
+        update(player.place, conf.player)
+      )
+
+      return fillDangeon(dangeon)
+    }
+
     return {
       create,
       get,
@@ -220,7 +226,8 @@ function debug (message) {
       update,
       batch,
       itemMap,
-      itemPlaces: R.compose(R.map(R.prop('place')), R.values)
+      itemPlaces,
+      fill
     }
   }())
 
@@ -245,54 +252,23 @@ function debug (message) {
   }())
 
   function rogueLikeGame (address) {
-    function createDangeon () {
-      console.log('call init')
-      const initialState = {
-        player: {
-          place: Point.create(17, 7),
-          level: 1,
-          health: 100,
-          power: 10,
-          experience: 0,
-          weapon: 'stick'
-        },
-
-        enemy: Dangeon.itemMap([
-          { place: Point.create(21, 3), health: 95, type: 'goblin' },
-          { place: Point.create(15, 7), health: 90, type: 'goblin' },
-          { place: Point.create(1, 7), health: 90, type: 'goblin' }
-        ]),
-
-        weapon: Dangeon.itemMap([
-          { place: Point.create(8, 3), name: 'cane' },
-          { place: Point.create(16, 1), name: 'bone knife' }
-        ]),
-
-        health: Dangeon.itemMap([
-          { place: Point.create(1, 2), health: 20 },
-          { place: Point.create(18, 3), health: 20 },
-          { place: Point.create(19, 8), health: 15 }
-        ]),
-
-        floor: 1,
-
-        dangeon: Dangeon.create(10, 26),
-
-        rows: 10,
-        cols: 26,
-        gameOver: false
+    const tasks = (function tasks () {
+      function batchAccum (tasks, init) {
+        return () => R.reduce((acc, fn) => (
+          fn(acc)()
+        ), init, tasks)
       }
 
-      return [initialState]
-    }
+      function randomInRange (min, max) {
+        return min + Math.floor(Math.random() * (max - min + 1))
+      }
 
-    const tasks = (function tasks () {
       function randomDamage (damager) {
         const weapon = Weapon.create(damager.weapon)
         const min = Weapon.minDamage(weapon)
         const max = Weapon.maxDamage(weapon)
 
-        return damager.power + min + Math.floor(Math.random() * (max - min + 1))
+        return damager.power + randomInRange(min, max)
       }
 
       function generateDamage ({ player, enemy }, keeper) {
@@ -308,7 +284,73 @@ function debug (message) {
         return () => setTimeout(() => address(keeper), delay)
       }
 
+      function gameObjSize (sizeConf) {
+        if (R.is(Array, sizeConf)) {
+          return randomInRange(sizeConf[0], sizeConf[1])
+        }
+
+        return sizeConf
+      }
+
+      function generatePoint (floor, dangeon) {
+        const { rows, cols } = config.floors[floor]
+
+        function randomPoint () {
+          const col = randomInRange(0, cols - 1)
+          const row = randomInRange(0, rows - 1)
+          const point = Point.create(col, row)
+          const isSpaceInPoint = R.compose(Cell.isSpace, Dangeon.get(point))
+
+          if (isSpaceInPoint(dangeon)) {
+            return point
+          }
+
+          return randomPoint()
+        }
+
+        return randomPoint()
+      }
+
+      function generateGameObjects (name) {
+        return keeper => model => {
+          return () => {
+            const { floor } = model
+            const conf = config.floors[floor]
+            const size = gameObjSize(conf[name])
+            const stdObj = config[name]
+
+            const type = R.find(x => (
+              stdObj[x].level === floor
+            ), R.keys(stdObj))
+
+            const health = stdObj[type].health
+            const formAndSend = R.compose(
+              address, keeper, Dangeon.itemMap, R.last, R.mapAccum
+            )
+
+            return formAndSend(
+              (dangeon) => {
+                const place = generatePoint(floor, dangeon)
+                const updatedDangeon = Dangeon.update(place, conf[name])(dangeon)
+                return [updatedDangeon, { place, type, health }]
+              }, Dangeon.fill(model), R.range(0, size))
+          }
+        }
+      }
+
+      function generatePlayer (keeper) {
+        return ({ floor, dangeon, player }) => () => {
+          const send = R.compose(address, keeper)
+          return send(generatePoint(floor, dangeon))
+        }
+      }
+
       return {
+        batchAccum,
+        generateEnemies: generateGameObjects('enemies'),
+        generateWeapons: generateGameObjects('weapons'),
+        generateHealth: generateGameObjects('health'),
+        generatePlayer,
         generateDamage,
         pause
       }
@@ -316,6 +358,7 @@ function debug (message) {
 
     const actions = (function actions () {
       const noop = () => [{}]
+      const keep = key => value => model => [R.assoc(key, value, model)]
       const keyMoveMap = new Map()
 
       keyMoveMap.set('ArrowUp', move(Point.moveUp))
@@ -403,9 +446,9 @@ function debug (message) {
         const { player, weapon } = model
         const id = place.id
 
-        if (Stat.weapon(player.weapon).power < Stat.weapon(weapon[id].name).power) {
+        if (Stat.weapon(player.weapon).power < Stat.weapon(weapon[id].type).power) {
           const take = R.compose(
-            R.assocPath(['player', 'weapon'], weapon[id].name),
+            R.assocPath(['player', 'weapon'], weapon[id].type),
             R.dissocPath(['weapon', id])
           )
 
@@ -448,8 +491,16 @@ function debug (message) {
         }
       }
 
+      function keepPlayerPlace (place) {
+        return (model) => {
+          return [R.assocPath(['player', 'place'], place, model)]
+        }
+      }
+
       return {
         noop,
+        keep,
+        keepPlayerPlace,
         keyDown: key => {
           const action = keyMoveMap.get(key)
 
@@ -458,6 +509,35 @@ function debug (message) {
         }
       }
     }())
+
+    function createDangeon () {
+      const initialState = {
+        player: {
+          level: 1,
+          health: 100,
+          power: 10,
+          experience: 0,
+          weapon: 'stick'
+        },
+
+        floor: '1',
+
+        dangeon: Dangeon.create(10, 26),
+
+        rows: 10,
+        cols: 26,
+        gameOver: false
+      }
+
+      return [
+        initialState,
+        tasks.batchAccum([
+          tasks.generateEnemies(actions.keep('enemy')),
+          tasks.generateWeapons(actions.keep('weapon')),
+          tasks.generateHealth(actions.keep('health')),
+          tasks.generatePlayer(actions.keepPlayerPlace)
+        ], initialState)]
+    }
 
     function view () {
       const h = React.createElement
@@ -472,6 +552,7 @@ function debug (message) {
       const app = (function app () {
         function App ({ dangeon, player, floor, gameOver }) {
           const { health, power, level, experience } = player
+          console.log(player)
           const weapon = Stat.weapon(player.weapon).power
 
           return h('div', {
@@ -528,24 +609,7 @@ function debug (message) {
       }())
 
       function reform (model) {
-        const { health, weapon, enemy, player, gameOver } = model
-        const conf = config.objects
-
-        const batchUpdate = Dangeon.batch(Dangeon.update)
-
-        const dangeon = R.compose(
-          batchUpdate(Dangeon.itemPlaces(health), conf.health),
-          batchUpdate(Dangeon.itemPlaces(weapon), conf.weapon),
-          batchUpdate(Dangeon.itemPlaces(enemy), conf.enemy),
-          Dangeon.update(player.place, conf.player)
-        )
-
-        return {
-          player,
-          floor: model.floor,
-          dangeon: dangeon(model.dangeon),
-          gameOver
-        }
+        return R.merge(model, { dangeon: Dangeon.fill(model) })
       }
 
       return function render (model) {
