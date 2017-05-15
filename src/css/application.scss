@@ -16,6 +16,7 @@ $fourth-offset: $std-offset / 4;
 
 .dangeon {
   display: inline-block;
+  white-space: nowrap;
 }
 
 .dangeon-row {
