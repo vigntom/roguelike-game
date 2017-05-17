@@ -6,9 +6,11 @@ import WebApp from './web-app'
   const config = {
     pause: 2000,        // pause to start a new game
     privateArea: 1,
-    corridorWidth: 1,
-    minRoomSize: 3,
-    minZoneSize: 7,
+    corridorWidth: 2,
+    // minRoomSize: 3,
+    // minZoneSize: 7,
+    minRoomSize: 7,
+    minZoneSize: 15,
     sizeOfPreferences: 5,
     objects: {
       wall: 'x',
@@ -31,8 +33,8 @@ import WebApp from './web-app'
     },
 
     floors: {
-      // 'floor-1': { rows: 60, cols: 90, enemies: [3, 5], weapon: 'cane', health: [5, 7] },
-      'floor-1': { rows: 8, cols: 15, enemies: [3, 5], weapons: 1, health: [5, 7] },
+      'floor-1': { rows: 60, cols: 90, enemies: [3, 5], weapons: 1, health: [5, 7] },
+      // 'floor-1': { rows: 8, cols: 15, enemies: [3, 5], weapons: 1, health: [5, 7] },
       'floor-2': { rows: 90, cols: 120, enemies: [6, 10], weapons: 1, health: [8, 11] },
       'floor-3': { rows: 120, cols: 150, enemies: [9, 12], weapons: 1, health: [11, 15] },
       'floor-4': { rows: 150, cols: 180, enemies: [10, 15], weapons: 1, health: [13, 18] },
@@ -465,13 +467,33 @@ import WebApp from './web-app'
             const intersection = leftLength + rightLength - bottom + top
             const exceeding = Math.max(topDiff, bottomDiff)
 
-            console.log(intersection, exceeding)
-
             return { intersection, exceeding }
           }
 
           function directTunnel (left, right, axis, dangeon) {
-            return dangeon
+            const top = Math.max(left.r1[axis], right.r1[axis])
+            const bottom = Math.min(left.r2[axis], right.r2[axis])
+            const middle = top + Math.ceil((bottom - top) / 2)
+            const pair = axis === 'x' ? 'y' : 'x'
+
+            const width = R.range(middle - config.corridorWidth, middle)
+            const length = R.range(left.r2[pair], right.r1[pair])
+
+            const rows = axis === 'x' ? length : width
+            const cols = axis === 'x' ? width : length
+
+            const result = dangeon.concat()
+
+            R.forEach(rowId => {
+              const row = result[rowId].concat()
+              R.forEach(colId => {
+                row[colId] = 'o'
+              }, cols)
+
+              result[rowId] = row
+            }, rows)
+
+            return result
           }
 
           function angularTunnel (left, right, axis, dangeon) {
@@ -484,13 +506,13 @@ import WebApp from './web-app'
 
           function addCorridor (splitAxis, left, right, dangeon) {
             const axis = splitAxis === 'x' ? 'y' : 'x'
-            const analyzis = analysisRooms(left, right, axis)
+            const analysis = analysisRooms(left, right, axis)
 
-            if (analyzis.instersection > config.corridorWidth) {
+            if (analysis.intersection > config.corridorWidth) {
               return directTunnel(left, right, axis, dangeon)
             }
 
-            if (analyzis.exceeding > config.corridorWidth) {
+            if (analysis.exceeding > config.corridorWidth) {
               angularTunnel(left, right, axis, dangeon)
             }
 
@@ -522,11 +544,11 @@ import WebApp from './web-app'
             const rRoom = rightPart.room
             const lRoom = leftPart.room
 
-            console.log('\n---------------------------------------')
-            console.log('axis: ', axis)
-            console.log('left room: ', lRoom)
-            console.log('right room: ', rRoom)
-            console.log('---------------------------------------\n')
+            // console.log('\n---------------------------------------')
+            // console.log('axis: ', axis)
+            // console.log('left room: ', lRoom)
+            // console.log('right room: ', rRoom)
+            // console.log('---------------------------------------\n')
 
             const result = addCorridor(axis, lRoom, rRoom, leftPart.dangeon)
 
