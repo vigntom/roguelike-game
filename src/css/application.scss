@@ -27,6 +27,8 @@ $fourth-offset: $std-offset / 4;
   display: inline-block;
   width: 20px;
   height: 20px;
+  border-top: 1px solid gray;
+  border-left: 1px solid gray;
   background-color: $color-white;
 }
 

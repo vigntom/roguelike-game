@@ -2,19 +2,14 @@
 
 import WebApp from './web-app'
 
-function debug (message) {
-  return function (x) {
-    console.log(message + x)
-    return x
-  }
-}
-
 (function application (root$) {
   const config = {
     pause: 2000,        // pause to start a new game
     privateArea: 1,
-    minRoomSize: 5,
+    corridorWidth: 1,
+    minRoomSize: 3,
     minZoneSize: 7,
+    sizeOfPreferences: 5,
     objects: {
       wall: 'x',
       player: 'p',
@@ -36,7 +31,8 @@ function debug (message) {
     },
 
     floors: {
-      'floor-1': { rows: 60, cols: 90, enemies: [3, 5], weapon: 'cane', health: [5, 7] },
+      // 'floor-1': { rows: 60, cols: 90, enemies: [3, 5], weapon: 'cane', health: [5, 7] },
+      'floor-1': { rows: 8, cols: 15, enemies: [3, 5], weapons: 1, health: [5, 7] },
       'floor-2': { rows: 90, cols: 120, enemies: [6, 10], weapons: 1, health: [8, 11] },
       'floor-3': { rows: 120, cols: 150, enemies: [9, 12], weapons: 1, health: [11, 15] },
       'floor-4': { rows: 150, cols: 180, enemies: [10, 15], weapons: 1, health: [13, 18] },
@@ -98,6 +94,21 @@ function debug (message) {
       weapon,
       enemy,
       floor
+    }
+  }())
+
+  const Random = (function Random () {
+    function inRange (min, max) {
+      return min + Math.floor(Math.random() * (max - min))
+    }
+
+    function oneFrom (list) {
+      return list[inRange(0, list.length)]
+    }
+
+    return {
+      inRange,
+      oneFrom
     }
   }())
 
@@ -298,16 +309,12 @@ function debug (message) {
         ), init, tasks)
       }
 
-      function randomInRange (min, max) {
-        return min + Math.floor(Math.random() * (max - min))
-      }
-
       function randomDamage (damager) {
         const weapon = Weapon.create(damager.weapon)
         const min = Weapon.minDamage(weapon)
         const max = Weapon.maxDamage(weapon)
 
-        return damager.power + randomInRange(min, max + 1)
+        return damager.power + Random.inRange(min, max + 1)
       }
 
       function generateDamage ({ player, enemy }, keeper) {
@@ -336,8 +343,8 @@ function debug (message) {
         const createPoint = Point.create(floor)
 
         function randomPoint () {
-          const col = randomInRange(0, cols)
-          const row = randomInRange(0, rows)
+          const col = Random.inRange(0, cols)
+          const row = Random.inRange(0, rows)
           const point = createPoint(col, row)
           const isSpaceInPoint = R.compose(Cell.isSpace, Dangeon.get(point))
 
@@ -397,15 +404,6 @@ function debug (message) {
           const { rows, cols } = Stat.floor(level)
           const p1 = { x: 0, y: 0 }
           const p2 = { x: cols, y: rows }
-          let rooms = []
-
-          function pointInRooms (x, y) {
-            return R.any(room => {
-              const isInColRange = x >= room.r1.x && x < room.r2.x
-              const isInRowRange = y >= room.r1.y && y < room.r2.y
-              return isInColRange && isInRowRange
-            }, rooms)
-          }
 
           function split (axis, splitAt, p1, p2) {
             const p12 = R.assoc(axis, splitAt, p2)
@@ -419,57 +417,161 @@ function debug (message) {
 
           function formRoom (bound) {
             const { p1, p2 } = bound
-            const xLen = p2.x - p1.x - 1
-            const yLen = p2.y - p1.y - 1
-            const x1 = randomInRange(p1.x, p1.x + (xLen - config.minRoomSize) / 2)
-            const y1 = randomInRange(p1.y, p1.y + (yLen - config.minRoomSize) / 2)
-            const x2 = randomInRange(p1.x + (xLen + config.minRoomSize) / 2, p2.x)
-            const y2 = randomInRange(p1.y + (yLen + config.minRoomSize) / 2, p2.y)
+            const x1 = Random.inRange(p1.x + 1, p2.x - config.minRoomSize - 1)
+            const y1 = Random.inRange(p1.y + 1, p2.y - config.minRoomSize - 1)
+
+            const x2 = Random.inRange(x1 + config.minRoomSize, p2.x - 1)
+            const y2 = Random.inRange(y1 + config.minRoomSize, p2.y - 1)
+
             const r1 = { x: x1, y: y1 }
             const r2 = { x: x2, y: y2 }
 
             return R.merge(bound, { r1, r2 })
           }
 
-          function connectRooms (sample) {
-            return sample
+          function sampleToDangeon ({ r1, r2, left, right }, dangeon) {
+            if (r1 !== undefined) {
+              const result = dangeon.concat()
+
+              R.forEach(rowId => {
+                const col = result[rowId].concat()
+
+                R.forEach(colId => {
+                  col[colId] = '0'
+                }, R.range(r1.x, r2.x))
+
+                result[rowId] = col
+              }, R.range(r1.y, r2.y))
+
+              return result
+            }
+
+            const rightRoom = sampleToDangeon(right, dangeon)
+            const bothRooms = sampleToDangeon(left, rightRoom)
+
+            return bothRooms
           }
 
-          function randomSplit ({ p1, p2 }) {
-            const axis = ['x', 'y'][randomInRange(0, 2)]
+          function analysisRooms (left, right, axis) {
+            const top = Math.min(left.r1[axis], right.r1[axis])
+            const bottom = Math.max(left.r2[axis], right.r2[axis])
+
+            const leftLength = left.r2[axis] - left.r1[axis]
+            const rightLength = right.r2[axis] - right.r1[axis]
+
+            const topDiff = Math.abs(left.r1[axis] - right.r1[axis])
+            const bottomDiff = Math.abs(left.r2[axis] - right.r2[axis])
+
+            const intersection = leftLength + rightLength - bottom + top
+            const exceeding = Math.max(topDiff, bottomDiff)
+
+            console.log(intersection, exceeding)
+
+            return { intersection, exceeding }
+          }
+
+          function directTunnel (left, right, axis, dangeon) {
+            return dangeon
+          }
+
+          function angularTunnel (left, right, axis, dangeon) {
+            return dangeon
+          }
+
+          function zigzagTunnel (left, right, axis, dangeon) {
+            return dangeon
+          }
+
+          function addCorridor (splitAxis, left, right, dangeon) {
+            const axis = splitAxis === 'x' ? 'y' : 'x'
+            const analyzis = analysisRooms(left, right, axis)
+
+            if (analyzis.instersection > config.corridorWidth) {
+              return directTunnel(left, right, axis, dangeon)
+            }
+
+            if (analyzis.exceeding > config.corridorWidth) {
+              angularTunnel(left, right, axis, dangeon)
+            }
+
+            return zigzagTunnel(left, right, axis, dangeon)
+          }
+
+          function sampleToDangeon2 (node, model) {
+            const { axis, r1, r2, left, right } = node
+
+            if (r1 !== undefined) {
+              const result = model.dangeon.concat()
+
+              R.forEach(rowId => {
+                const col = result[rowId].concat()
+
+                R.forEach(colId => {
+                  col[colId] = '0'
+                }, R.range(r1.x, r2.x))
+
+                result[rowId] = col
+              }, R.range(r1.y, r2.y))
+
+              return { room: { r1, r2 }, dangeon: result }
+            }
+
+            const rightPart = sampleToDangeon2(right, model)
+            const leftPart = sampleToDangeon2(left, rightPart)
+
+            const rRoom = rightPart.room
+            const lRoom = leftPart.room
+
+            console.log('\n---------------------------------------')
+            console.log('axis: ', axis)
+            console.log('left room: ', lRoom)
+            console.log('right room: ', rRoom)
+            console.log('---------------------------------------\n')
+
+            const result = addCorridor(axis, lRoom, rRoom, leftPart.dangeon)
+
+            return {
+              room: Random.oneFrom([lRoom, rRoom]),
+              dangeon: result
+            }
+          }
+
+          function randomSplit ({ p1, p2 }, pref) {
+            const axes = ['x', 'y']
+            const axesWithPref = R.concat(pref, axes)
+            const axis = Random.oneFrom(axesWithPref) // axesWithPref[Random.inRange(0, axesWithPref.length)]
+            const opposite = axis === 'x' ? 'y' : 'x'
+            const newPref = axesWithPref.length > config.sizeOfPreferences
+              ? []
+              : R.append(opposite, pref)
+
             const p1prime = p1[axis] + config.minZoneSize
             const p2prime = p2[axis] - config.minZoneSize
 
             if (p1prime < p2prime) {
-              const splitValue = randomInRange(p1prime, p2prime)
+              const splitValue = Random.inRange(p1prime, p2prime)
               const { left, right } = split(axis, splitValue, p1, p2)
 
               return {
+                axis,
                 p1,
                 p2,
-                left: randomSplit(left),
-                right: randomSplit(right)
+                left: randomSplit(left, newPref),
+                right: randomSplit(right, newPref)
               }
             }
 
-            const room = formRoom({ p1, p2 })
-            rooms.push(room)
-            return room
+            return formRoom({ p1, p2 })
           }
 
-          const sample = R.compose(connectRooms, randomSplit)({ p1, p2 })
+          const send = R.compose(address, keep, R.merge(initialState))
+          const sample = randomSplit({ p1, p2 }, [])
+          // const dangeon = sampleToDangeon(sample, initialState.dangeon)
 
-          const dangeon = R.map(row => (
-            R.map(col => {
-              if (pointInRooms(col, row)) {
-                return config.objects.space
-              }
+          const { dangeon } = sampleToDangeon2(sample, initialState)
+          // console.log(dangeon)
 
-              return config.objects.wall
-            }, R.range(0, cols - 1))
-          ), R.range(0, rows - 1))
-
-          return address(keep(R.merge(initialState, { dangeon, sample })))
+          return send({ dangeon })
         }
       }
 
