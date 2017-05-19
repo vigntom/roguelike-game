@@ -56,6 +56,26 @@ $fourth-offset: $std-offset / 4;
   background-color: $color-space;
 }
 
+.cell-test-a {
+  background-color: yellow;
+}
+
+.cell-test-b {
+  background-color: orange;
+}
+
+.cell-test-c {
+  background-color: darken(orange, 10%);
+}
+
+.cell-test-d {
+  background-color: black(.2);
+}
+
+.cell-test-e {
+  background-color: black(.5);
+}
+
 .info-item {
   display: inline-block;
   margin: $half-offset;

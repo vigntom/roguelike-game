@@ -6,9 +6,9 @@ import WebApp from './web-app'
   const config = {
     pause: 2000,        // pause to start a new game
     privateArea: 1,
-    corridorWidth: 2,
-    // minRoomSize: 3,
-    // minZoneSize: 7,
+    corridorWidth: 3,
+    // minRoomSize: 5,
+    // minZoneSize: 8,
     minRoomSize: 7,
     minZoneSize: 15,
     sizeOfPreferences: 5,
@@ -33,8 +33,8 @@ import WebApp from './web-app'
     },
 
     floors: {
-      'floor-1': { rows: 60, cols: 90, enemies: [3, 5], weapons: 1, health: [5, 7] },
-      // 'floor-1': { rows: 8, cols: 15, enemies: [3, 5], weapons: 1, health: [5, 7] },
+      'floor-1': { rows: 90, cols: 120, enemies: [3, 5], weapons: 1, health: [5, 7] },
+      // 'floor-1': { rows: 50, cols: 50, enemies: [3, 5], weapons: 1, health: [5, 7] },
       'floor-2': { rows: 90, cols: 120, enemies: [6, 10], weapons: 1, health: [8, 11] },
       'floor-3': { rows: 120, cols: 150, enemies: [9, 12], weapons: 1, health: [11, 15] },
       'floor-4': { rows: 150, cols: 180, enemies: [10, 15], weapons: 1, health: [13, 18] },
@@ -252,6 +252,7 @@ import WebApp from './web-app'
 
     function itemMap (list) {
       const result = {}
+
       list.forEach(obj => {
         result[obj.place.id] = obj
       })
@@ -259,7 +260,7 @@ import WebApp from './web-app'
       return result
     }
 
-    function fill ({ health, weapon, enemy, player }) {
+    function fillWithObjects ({ health, weapon, enemy, player }) {
       const conf = config.objects
       const batchUpdate = batch(update)
 
@@ -269,6 +270,23 @@ import WebApp from './web-app'
         batchUpdate(itemPlaces(enemy), conf.enemy),
         update(player.place, conf.player)
       )
+    }
+
+    function fill (rows, cols, value) {
+      return (dangeon) => {
+        const result = dangeon.concat()
+
+        R.forEach(rowId => {
+          const row = result[rowId].concat()
+          R.forEach(colId => {
+            row[colId] = value
+          }, cols)
+
+          result[rowId] = row
+        }, rows)
+
+        return result
+      }
     }
 
     function addBorders (dangeon) {
@@ -299,6 +317,7 @@ import WebApp from './web-app'
       itemMap,
       itemPlaces,
       fill,
+      fillWithObjects,
       addBorders
     }
   }())
@@ -306,9 +325,10 @@ import WebApp from './web-app'
   function rogueLikeGame (address) {
     const tasks = (function tasks () {
       function batchAccum (tasks, init) {
-        return () => R.reduce((acc, fn) => (
-          fn(acc)()
-        ), init, tasks)
+        return () => R.reduce((acc, fn) => {
+          console.log(fn)
+          return fn(acc)()
+        }, init, tasks)
       }
 
       function randomDamage (damager) {
@@ -334,7 +354,7 @@ import WebApp from './web-app'
 
       function gameObjCount (sizeConf) {
         if (R.is(Array, sizeConf)) {
-          return randomInRange(sizeConf[0], sizeConf[1] + 1)
+          return Random.inRange(sizeConf[0], sizeConf[1] + 1)
         }
 
         return sizeConf
@@ -377,7 +397,7 @@ import WebApp from './web-app'
               address, keeper, Dangeon.itemMap, R.last, R.mapAccum
             )
 
-            const fill = Dangeon.fill(model)
+            const fill = Dangeon.fillWithObjects(model)
 
             return formAndSend(
               (dangeon) => {
@@ -431,29 +451,6 @@ import WebApp from './web-app'
             return R.merge(bound, { r1, r2 })
           }
 
-          function sampleToDangeon ({ r1, r2, left, right }, dangeon) {
-            if (r1 !== undefined) {
-              const result = dangeon.concat()
-
-              R.forEach(rowId => {
-                const col = result[rowId].concat()
-
-                R.forEach(colId => {
-                  col[colId] = '0'
-                }, R.range(r1.x, r2.x))
-
-                result[rowId] = col
-              }, R.range(r1.y, r2.y))
-
-              return result
-            }
-
-            const rightRoom = sampleToDangeon(right, dangeon)
-            const bothRooms = sampleToDangeon(left, rightRoom)
-
-            return bothRooms
-          }
-
           function analysisRooms (left, right, axis) {
             const top = Math.min(left.r1[axis], right.r1[axis])
             const bottom = Math.max(left.r2[axis], right.r2[axis])
@@ -470,101 +467,181 @@ import WebApp from './web-app'
             return { intersection, exceeding }
           }
 
-          function directTunnel (left, right, axis, dangeon) {
-            const top = Math.max(left.r1[axis], right.r1[axis])
-            const bottom = Math.min(left.r2[axis], right.r2[axis])
-            const middle = top + Math.ceil((bottom - top) / 2)
-            const pair = axis === 'x' ? 'y' : 'x'
-
-            const width = R.range(middle - config.corridorWidth, middle)
-            const length = R.range(left.r2[pair], right.r1[pair])
-
+          function tunnel (axis, width, length, value) {
             const rows = axis === 'x' ? length : width
             const cols = axis === 'x' ? width : length
 
-            const result = dangeon.concat()
-
-            R.forEach(rowId => {
-              const row = result[rowId].concat()
-              R.forEach(colId => {
-                row[colId] = 'o'
-              }, cols)
-
-              result[rowId] = row
-            }, rows)
-
-            return result
+            return Dangeon.fill(rows, cols, value) // config.objects.space)
           }
 
-          function angularTunnel (left, right, axis, dangeon) {
-            return dangeon
+          function calcWidth (p1, p2) {
+            const delta = config.corridorWidth / 2
+            const mid = p1 + Math.ceil((p2 - p1) / 2)
+
+            return {
+              p1: mid - Math.ceil(delta),
+              p2: mid + Math.floor(delta)
+            }
           }
 
-          function zigzagTunnel (left, right, axis, dangeon) {
-            return dangeon
+          function directTunnel (left, right, axis) {
+            const pair = axis === 'x' ? 'y' : 'x'
+            const top = Math.max(left.r1[axis], right.r1[axis])
+            const bottom = Math.min(left.r2[axis], right.r2[axis])
+            const { p1, p2 } = calcWidth(top, bottom)
+
+            const width = R.range(p1, p2)
+            const length = R.range(left.r2[pair], right.r1[pair])
+
+            return tunnel(axis, width, length, 'a')
           }
 
-          function addCorridor (splitAxis, left, right, dangeon) {
+          function fillAngularTunnel (axis, top, sideTop, bottom, sideBottom) {
+            const pair = axis === 'x' ? 'y' : 'x'
+            const widthTop = R.range(sideTop.p1, sideTop.p2)
+            const widthBottom = R.range(sideBottom.p1, sideBottom.p2)
+
+            const lengthTop = top.r1[pair] > sideBottom.p1
+              ? R.range(sideBottom.p1, top.r1[pair])
+              : R.range(top.r2[pair], sideBottom.p1)
+
+            const lengthBottom = sideTop.p1 < bottom.r1[axis]
+              ? R.range(sideTop.p1, bottom.r1[axis])
+              : R.range(bottom.r2[axis], sideTop.p2)
+
+            return R.pipe(
+              tunnel(axis, widthTop, lengthTop, 'o'),
+              tunnel(pair, widthBottom, lengthBottom, 'o')
+            )
+          }
+
+          function angularTunnel (left, right, axis) {
+            const pair = axis === 'x' ? 'y' : 'x'
+
+            if (axis === 'y') {
+              const top = (right.r1[axis] < left.r1[axis])
+                ? right
+                : left
+              const bottom = top === right ? left : right
+
+              const p11 = top.r1[axis]
+              const p12 = Math.min(top.r2[axis], bottom.r1[axis] - 1)
+              const sideTop = calcWidth(p11, p12)
+
+              const p21 = bottom.r1[pair]
+              const p22 = bottom.r2[pair]
+              const sideBottom = calcWidth(p21, p22)
+
+              return fillAngularTunnel(axis, top, sideTop, bottom, sideBottom)
+            }
+
+            const top = (left.r2[axis] > right.r2[axis])
+              ? left
+              : right
+            const bottom = top === left ? right : left
+
+            const p11 = top.r2[axis]
+            const p12 = Math.max(top.r1[axis], bottom.r2[axis] + 1)
+            const sideTop = calcWidth(p11, p12)
+
+            const p21 = bottom.r1[pair]
+            const p22 = bottom.r2[pair]
+            const sideBottom = calcWidth(p21, p22)
+
+            return fillAngularTunnel(axis, top, sideTop, bottom, sideBottom)
+          }
+
+          function addCorridor (splitAxis, { left, right }) {
             const axis = splitAxis === 'x' ? 'y' : 'x'
             const analysis = analysisRooms(left, right, axis)
 
             if (analysis.intersection > config.corridorWidth) {
-              return directTunnel(left, right, axis, dangeon)
+              return directTunnel(left, right, axis)
             }
 
             if (analysis.exceeding > config.corridorWidth) {
-              angularTunnel(left, right, axis, dangeon)
+              return angularTunnel(left, right, axis)
             }
 
-            return zigzagTunnel(left, right, axis, dangeon)
+            throw new Error('Configuration Error! Room size must be 2 times as corridor size.')
           }
 
-          function sampleToDangeon2 (node, model) {
+          function sampleToDangeon (node, model) {
             const { axis, r1, r2, left, right } = node
 
             if (r1 !== undefined) {
-              const result = model.dangeon.concat()
+              const rows = R.range(r1.y, r2.y)
+              const cols = R.range(r1.x, r2.x)
+              const fillWithSpaces = Dangeon.fill(rows, cols, config.objects.spaces)
 
-              R.forEach(rowId => {
-                const col = result[rowId].concat()
-
-                R.forEach(colId => {
-                  col[colId] = '0'
-                }, R.range(r1.x, r2.x))
-
-                result[rowId] = col
-              }, R.range(r1.y, r2.y))
-
-              return { room: { r1, r2 }, dangeon: result }
+              return { room: { r1, r2 }, dangeon: fillWithSpaces(model.dangeon) }
             }
 
-            const rightPart = sampleToDangeon2(right, model)
-            const leftPart = sampleToDangeon2(left, rightPart)
-
-            const rRoom = rightPart.room
-            const lRoom = leftPart.room
-
-            // console.log('\n---------------------------------------')
-            // console.log('axis: ', axis)
-            // console.log('left room: ', lRoom)
-            // console.log('right room: ', rRoom)
-            // console.log('---------------------------------------\n')
-
-            const result = addCorridor(axis, lRoom, rRoom, leftPart.dangeon)
+            const withRooms = sampleToDangeon(left, sampleToDangeon(right, model))
+            const fillWithCorridors = addCorridor(axis, roomsForConection(node))
 
             return {
-              room: Random.oneFrom([lRoom, rRoom]),
-              dangeon: result
+              dangeon: fillWithCorridors(withRooms.dangeon)
             }
+          }
+
+          function adjacentZone (fn, { left, right }) {
+            if (fn(left.p1, left.p2)) { return left }
+            if (fn(right.p1, right.p2)) { return right }
+
+            throw new Error(`There is not adjacent zone!`)
+          }
+
+          function adjacentRoom (fn, node) {
+            if (node.r1 !== undefined) {
+              return node
+            }
+
+            return adjacentRoom(fn, adjacentZone(fn, node))
+          }
+
+          function leftAdjacent (p0, axis) {
+            return (p1, p2) => {
+              if (axis === 'x') {
+                return p1.y === p0.y && p2.x + 1 === p0.x
+              }
+
+              return p2.x === p0.x && p2.y === p0.y
+            }
+          }
+
+          function rightAdjacent (p0, axis) {
+            return (p1, p2) => {
+              if (axis === 'x') {
+                return p1.x === p0.x && p1.y === p0.y
+              }
+
+              return p1.y - 1 === p0.y && p2.x === p0.x
+            }
+          }
+
+          function roomsForConection (node) {
+            const { axis, left, right } = node
+
+            if (node.r1 !== undefined) { return node }
+
+            const adjacentPoint = axis === 'x' ? right.p1 : left.p2
+            const testLeft = leftAdjacent(adjacentPoint, axis)
+            const testRight = rightAdjacent(adjacentPoint, axis)
+
+            const leftRoom = adjacentRoom(testLeft, left)
+            const rightRoom = adjacentRoom(testRight, right)
+
+            return { left: leftRoom, right: rightRoom }
           }
 
           function randomSplit ({ p1, p2 }, pref) {
             const axes = ['x', 'y']
             const axesWithPref = R.concat(pref, axes)
-            const axis = Random.oneFrom(axesWithPref) // axesWithPref[Random.inRange(0, axesWithPref.length)]
+            const axis = Random.oneFrom(axesWithPref)
             const opposite = axis === 'x' ? 'y' : 'x'
             const newPref = axesWithPref.length > config.sizeOfPreferences
-              ? []
+              ? [opposite]
               : R.append(opposite, pref)
 
             const p1prime = p1[axis] + config.minZoneSize
@@ -588,10 +665,7 @@ import WebApp from './web-app'
 
           const send = R.compose(address, keep, R.merge(initialState))
           const sample = randomSplit({ p1, p2 }, [])
-          // const dangeon = sampleToDangeon(sample, initialState.dangeon)
-
-          const { dangeon } = sampleToDangeon2(sample, initialState)
-          // console.log(dangeon)
+          const { dangeon } = sampleToDangeon(sample, initialState)
 
           return send({ dangeon })
         }
@@ -752,8 +826,9 @@ import WebApp from './web-app'
       }
 
       function useWorld (world) {
-        return () => {
-          return [world]
+        return (model) => {
+          console.log(world, model)
+          return [world, tasks.generatePlayer(keep('dangeon')(world))]
         }
       }
 
@@ -865,7 +940,7 @@ import WebApp from './web-app'
       function reform (model) {
         const prepare = R.compose(
           Dangeon.addBorders,
-          Dangeon.fill(model)
+          Dangeon.fillWithObjects(model)
         )
 
         return R.merge(model, { dangeon: prepare(model.dangeon) })
