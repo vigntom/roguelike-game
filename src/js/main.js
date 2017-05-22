@@ -2,17 +2,35 @@
 
 import WebApp from './web-app'
 
+function debug (msg) {
+  return arg => {
+    console.log(msg, ' :', arg)
+    return arg
+  }
+}
+
 (function application (root$) {
-  const config = {
-    pause: 2000,        // pause to start a new game
-    privateArea: 1,
-    corridorWidth: 3,
-    // minRoomSize: 5,
-    // minZoneSize: 8,
-    minRoomSize: 7,
-    minZoneSize: 15,
-    sizeOfPreferences: 5,
-    objects: {
+  const config = (function config () {
+    const roomSizeRate = 0.8           // of zone size
+    const corridorSizeRate = 0.4       // of room size
+    const zoneSizeFactor = 2           // factor to zone size calculation
+
+    const base = {
+      pause: 2000,                 // pause before to start a new game
+      sizeOfPreferences: 5,        // is used by zone generator
+      enemyCnance: 0.75,           // per room
+      roomSizeRate: 0.8,           // of zone size
+      corridorSizeRate: 0.4,       // of room size
+      dangeonRedundancy: 10        // how many dungeon trees are created to choose from
+    }
+
+    // zone size is based on the number of rooms on the floor
+    //
+    // game objects distribution
+    //   weapon: one per floor
+    //   health: depending on enemies and their average damage
+
+    const objects = {
       wall: 'x',
       player: 'p',
       enemy: 'e',
@@ -20,9 +38,9 @@ import WebApp from './web-app'
       health: 'h',
       space: 'o',
       exit: 't'
-    },
+    }
 
-    marks: {
+    const marks = {
       x: 'cell-wall',
       p: 'cell-player',
       e: 'cell-enemy',
@@ -30,25 +48,24 @@ import WebApp from './web-app'
       h: 'cell-health',
       o: 'cell-space',
       t: 'cell-exit'
-    },
+    }
 
-    floors: {
-      'floor-1': { rows: 90, cols: 120, enemies: [3, 5], weapons: 1, health: [5, 7] },
-      // 'floor-1': { rows: 50, cols: 50, enemies: [3, 5], weapons: 1, health: [5, 7] },
-      'floor-2': { rows: 90, cols: 120, enemies: [6, 10], weapons: 1, health: [8, 11] },
-      'floor-3': { rows: 120, cols: 150, enemies: [9, 12], weapons: 1, health: [11, 15] },
-      'floor-4': { rows: 150, cols: 180, enemies: [10, 15], weapons: 1, health: [13, 18] },
-      'floor-5': { rows: 50, cols: 50, enemies: [0, 0], boss: 1, health: [3, 5], weapons: 1 }
-    },
+    const floors = {
+      'floor-1': { rows: 60, cols: 90, rooms: 9 },
+      'floor-2': { rows: 90, cols: 120, rooms: 13 },
+      'floor-3': { rows: 120, cols: 150, rooms: 17 },
+      'floor-4': { rows: 150, cols: 180, rooms: 21 },
+      'floor-5': { rows: 50, cols: 50, rooms: 3 }
+    }
 
-    levels: {
+    const levels = {
       'level-1': { power: 10, breakpoint: 20 },
       'level-2': { power: 15, breakpoint: 40 },
       'level-3': { power: 20, breakpoint: 60 },
       'level-4': { power: 25, breakpoint: 80 }
-    },
+    }
 
-    weapons: {
+    const weapons = {
       noWeapon: { power: 0, sd: 0.3 },
       stick: { power: 5, sd: 0.2 },
       cane: { level: 1, power: 10, sd: 0.15 },
@@ -56,24 +73,66 @@ import WebApp from './web-app'
       'copper dagger': { level: 3, power: 20, sd: 0.1 },
       'bronze ax': { level: 4, power: 25, sd: 0.08 },
       'simple sword': { level: 5, attack: 30, sd: 0.05 }
-    },
+    }
 
-    enemies: {
+    const enemies = {
       goblin: { level: 1, power: 5, health: 75, value: 10, weapon: 'stick' },
       skeleton: { level: 2, power: 10, health: 90, value: 20, weapon: 'cane' },
       gnoll: { level: 3, power: 15, health: 110, value: 35, weapon: 'copper dagger' },
       dwarf: { level: 4, power: 20, health: 125, value: 40, weapon: 'bronze ax' },
       boss: { level: 5, power: 30, health: 200, value: 100, weapon: 'simple sword' }
-    },
+    }
 
-    health: {
+    const health = {
       'small potion': { level: 1, health: 25 },
       'potion': { level: 2, health: 50 },
       'medium potion': { level: 3, health: 75 },
       'great potion': { level: 4, health: 90 },
       'grand potion': { level: 5, health: 110 }
     }
-  }
+
+    function addSizes (obj) {
+      const roomsPerSide = Math.sqrt(obj.rooms)
+      const zonesPerSide = Math.floor(zoneSizeFactor * roomsPerSide)
+
+      const zoneSize = {
+        x: Math.ceil(obj.cols / zonesPerSide),
+        y: Math.ceil(obj.rows / zonesPerSide)
+      }
+
+      const roomSize = {
+        x: Math.floor(zoneSize.x * roomSizeRate),
+        y: Math.floor(zoneSize.y * roomSizeRate)
+      }
+
+      const minRoomSize = Math.min(roomSize.x, roomSize.y)
+
+      const maybeSize = Math.floor(minRoomSize * corridorSizeRate)
+      const halfRoomSize = Math.floor(minRoomSize / 2)
+
+      const corridorSize = maybeSize < halfRoomSize
+        ? maybeSize
+        : halfRoomSize
+
+      return R.merge(obj, { zoneSize, roomSize, corridorSize })
+    }
+
+    function updateFloors (obj) {
+      const result = {}
+      R.forEach(key => { result[key] = addSizes(obj[key]) }, R.keys(obj))
+      return result
+    }
+
+    return R.merge(base, {
+      objects,
+      marks,
+      floors: updateFloors(floors),
+      levels,
+      weapons,
+      enemies,
+      health
+    })
+  }())
 
   const Stat = (function Stat () {
     function weapon (type) {
@@ -92,10 +151,35 @@ import WebApp from './web-app'
       return config.floors[name]
     }
 
+    function countOfObj (floorName, objName) {
+      const obj = floor(floorName)[objName]
+      if (R.is(Array, obj)) {
+        return Random.inRange(obj[0], obj[1] + 1)
+      }
+
+      return obj
+    }
+
+    function roomSize (name) {
+      return floor(name).roomSize
+    }
+
+    function zoneSize (name) {
+      return floor(name).zoneSize
+    }
+
+    function corridorSize (name) {
+      return floor(name).corridorSize
+    }
+
     return {
       weapon,
       enemy,
-      floor
+      floor,
+      roomSize,
+      zoneSize,
+      corridorSize,
+      countOfObj
     }
   }())
 
@@ -153,12 +237,33 @@ import WebApp from './web-app'
       return result
     }
 
+    function generate (floor, dangeon) {
+      const { rows, cols } = Stat.floor(floor)
+      const createPoint = Point.create(floor)
+
+      function randomPoint () {
+        const col = Random.inRange(0, cols)
+        const row = Random.inRange(0, rows)
+        const point = createPoint(col, row)
+        const isSpaceInPoint = R.compose(Cell.isSpace, Dangeon.get(point))
+
+        if (isSpaceInPoint(dangeon)) {
+          return point
+        }
+
+        return randomPoint()
+      }
+
+      return randomPoint()
+    }
+
     return {
       create,
       moveUp,
       moveDown,
       moveLeft,
-      moveRight
+      moveRight,
+      generate
     }
   }())
 
@@ -196,16 +301,281 @@ import WebApp from './web-app'
       return config.weapons[type]
     }
 
+    function randomDamage (damager) {
+      const weapon = create(damager.weapon)
+      const min = minDamage(weapon)
+      const max = maxDamage(weapon)
+
+      return damager.power + Random.inRange(min, max + 1)
+    }
+
     return {
       create,
-      minDamage,
-      maxDamage
+      randomDamage
+    }
+  }())
+
+  const DangeonTree = (function DangeonTree () {
+    function split (axis, splitAt, p1, p2) {
+      const p12 = R.assoc(axis, splitAt, p2)
+      const p21 = R.assoc(axis, splitAt + 1, p1)
+
+      return {
+        left: { p1, p2: p12 },
+        right: { p1: p21, p2 }
+      }
+    }
+
+    function create (floor, { p1, p2 }) {
+      const { rooms } = Stat.floor(floor)
+      const diff = (a, b) => (
+        Math.abs(rooms - a[1]) - Math.abs(rooms - b[1])
+      )
+
+      const times = R.compose(
+        R.head,
+        R.head,
+        R.sort(diff),
+        R.times(() => createTree(floor, { p1, p2 }, 0, []))
+      )
+
+      return times(config.dangeonRedundancy)
+    }
+
+    function createTree (floor, zone, rooms, pref) {
+      const { p1, p2 } = zone
+      const axes = ['x', 'y']
+      const zoneSize = Stat.zoneSize(floor)
+      const axesWithPref = R.concat(pref, axes)
+      const axis = Random.oneFrom(axesWithPref)
+      const opposite = axis === 'x' ? 'y' : 'x'
+      const newPref = axesWithPref.length > config.sizeOfPreferences
+        ? [opposite]
+        : R.append(opposite, pref)
+
+      const p1prime = p1[axis] + zoneSize[axis]
+      const p2prime = p2[axis] - zoneSize[axis]
+
+      if (p1prime < p2prime) {
+        const splitValue = Random.inRange(p1prime, p2prime)
+        const { left, right } = split(axis, splitValue, p1, p2)
+
+        const [leftChild, leftRooms] = createTree(floor, left, rooms, newPref)
+        const [rightChild, rightRooms] = createTree(floor, right, rooms, newPref)
+
+        return [{
+          axis,
+          p1,
+          p2,
+          left: leftChild,
+          right: rightChild
+        }, leftRooms + rightRooms]
+      }
+
+      return [R.merge(zone, Room.create(floor, { p1, p2 })), 1]
+    }
+
+    return {
+      create
+    }
+  }())
+
+  const Room = (function Room () {
+    function create (floor, bound) { // todo: formRoom -> create,
+      const { p1, p2 } = bound
+      const roomSize = Stat.roomSize(floor)
+      const x1 = Random.inRange(p1.x + 1, p2.x - roomSize.x - 1)
+      const y1 = Random.inRange(p1.y + 1, p2.y - roomSize.y - 1)
+
+      const x2 = Random.inRange(x1 + roomSize.x, p2.x - 1)
+      const y2 = Random.inRange(y1 + roomSize.y, p2.y - 1)
+
+      const r1 = { x: x1, y: y1 }
+      const r2 = { x: x2, y: y2 }
+
+      return { r1, r2 }
+    }
+
+    function relativePosition (left, right, axis) { // todo: analysisRoom -> relativePosition
+      const top = Math.min(left.r1[axis], right.r1[axis])
+      const bottom = Math.max(left.r2[axis], right.r2[axis])
+
+      const leftLength = left.r2[axis] - left.r1[axis]
+      const rightLength = right.r2[axis] - right.r1[axis]
+
+      const topDiff = Math.abs(left.r1[axis] - right.r1[axis])
+      const bottomDiff = Math.abs(left.r2[axis] - right.r2[axis])
+
+      const intersection = leftLength + rightLength - bottom + top
+      const exceeding = Math.max(topDiff, bottomDiff)
+
+      return { intersection, exceeding }
+    }
+
+    function adjacentZone (fn, { left, right }) {
+      if (fn(left.p1, left.p2)) { return left }
+      if (fn(right.p1, right.p2)) { return right }
+
+      throw new Error(`There is not adjacent zone!`)
+    }
+
+    function adjacentRoom (fn, node) {
+      if (node.r1 !== undefined) {
+        return node
+      }
+
+      return adjacentRoom(fn, adjacentZone(fn, node))
+    }
+
+    function leftAdjacent (p0, axis) {
+      return (p1, p2) => {
+        if (axis === 'x') {
+          return p1.y === p0.y && p2.x + 1 === p0.x
+        }
+
+        return p2.x === p0.x && p2.y === p0.y
+      }
+    }
+
+    function rightAdjacent (p0, axis) {
+      return (p1, p2) => {
+        if (axis === 'x') {
+          return p1.x === p0.x && p1.y === p0.y
+        }
+
+        return p1.y - 1 === p0.y && p2.x === p0.x
+      }
+    }
+
+    function neighbors (node) {
+      const { axis, left, right } = node
+
+      if (node.r1 !== undefined) { return node }
+
+      const adjacentPoint = axis === 'x' ? right.p1 : left.p2
+      const testLeft = leftAdjacent(adjacentPoint, axis)
+      const testRight = rightAdjacent(adjacentPoint, axis)
+
+      const leftRoom = adjacentRoom(testLeft, left)
+      const rightRoom = adjacentRoom(testRight, right)
+
+      return { left: leftRoom, right: rightRoom }
+    }
+
+    return {
+      create,
+      neighbors,
+      relativePosition
+    }
+  }())
+
+  const Tunnel = (function Tunnel () {
+    function tunnel (axis, width, length, value) { // todo: <- fill
+      const rows = axis === 'x' ? length : width
+      const cols = axis === 'x' ? width : length
+
+      return Dangeon.fill(rows, cols, value)
+    }
+
+    function calcWidth (size, p1, p2) {
+      const halfSize = size / 2
+      const mid = p1 + Math.ceil((p2 - p1) / 2)
+
+      return {
+        p1: mid - Math.ceil(halfSize),
+        p2: mid + Math.floor(halfSize)
+      }
+    }
+
+    function directTunnel (axis, size, left, right) { // -> direct
+      const pair = axis === 'x' ? 'y' : 'x'
+      const top = Math.max(left.r1[axis], right.r1[axis])
+      const bottom = Math.min(left.r2[axis], right.r2[axis])
+      const { p1, p2 } = calcWidth(size, top, bottom)
+
+      const width = R.range(p1, p2)
+      const length = R.range(left.r2[pair], right.r1[pair])
+
+      return tunnel(axis, width, length, 'a')
+    }
+
+    function fillAngularTunnel (axis, top, sideTop, bottom, sideBottom) { // todo: <- fillAngular
+      const pair = axis === 'x' ? 'y' : 'x'
+      const widthTop = R.range(sideTop.p1, sideTop.p2)
+      const widthBottom = R.range(sideBottom.p1, sideBottom.p2)
+
+      const lengthTop = top.r1[pair] > sideBottom.p1
+        ? R.range(sideBottom.p1, top.r1[pair])
+        : R.range(top.r2[pair], sideBottom.p1)
+
+      const lengthBottom = sideTop.p1 < bottom.r1[axis]
+        ? R.range(sideTop.p1, bottom.r1[axis])
+        : R.range(bottom.r2[axis], sideTop.p2)
+
+      return R.pipe(
+        tunnel(axis, widthTop, lengthTop, 'o'),
+        tunnel(pair, widthBottom, lengthBottom, 'o')
+      )
+    }
+
+    function angularTunnel (axis, size, left, right) { // todo: createAngular
+      const pair = axis === 'x' ? 'y' : 'x'
+
+      if (axis === 'y') {
+        const top = (right.r1[axis] < left.r1[axis])
+          ? right
+          : left
+        const bottom = top === right ? left : right
+
+        const p11 = top.r1[axis]
+        const p12 = Math.min(top.r2[axis], bottom.r1[axis] - 1)
+        const sideTop = calcWidth(size, p11, p12)
+
+        const p21 = bottom.r1[pair]
+        const p22 = bottom.r2[pair]
+        const sideBottom = calcWidth(size, p21, p22)
+
+        return fillAngularTunnel(axis, top, sideTop, bottom, sideBottom)
+      }
+
+      const top = (left.r2[axis] > right.r2[axis])
+        ? left
+        : right
+      const bottom = top === left ? right : left
+
+      const p11 = top.r2[axis]
+      const p12 = Math.max(top.r1[axis], bottom.r2[axis] + 1)
+      const sideTop = calcWidth(size, p11, p12)
+
+      const p21 = bottom.r1[pair]
+      const p22 = bottom.r2[pair]
+      const sideBottom = calcWidth(size, p21, p22)
+
+      return fillAngularTunnel(axis, top, sideTop, bottom, sideBottom)
+    }
+
+    function addCorridor (floor, splitAxis, { left, right }) { // todo: <- create
+      const axis = splitAxis === 'x' ? 'y' : 'x'
+      const analysis = Room.relativePosition(left, right, axis)
+      const size = Stat.corridorSize(floor)
+
+      if (analysis.intersection > size) {
+        return directTunnel(axis, size, left, right)
+      }
+
+      if (analysis.exceeding > size) {
+        return angularTunnel(axis, size, left, right)
+      }
+
+      return { error: true }
+    }
+
+    return {
+      addCorridor
     }
   }())
 
   const Dangeon = (function Dangeon () {
-    const itemPlaces = R.compose(R.map(R.prop('place')), R.values)
-
     function create ({ rows, cols }) {
       const fillWith = R.compose(
         R.repeat(R.__, rows),
@@ -250,19 +620,10 @@ import WebApp from './web-app'
       return result
     }
 
-    function itemMap (list) {
-      const result = {}
-
-      list.forEach(obj => {
-        result[obj.place.id] = obj
-      })
-
-      return result
-    }
-
     function fillWithObjects ({ health, weapon, enemy, player }) {
       const conf = config.objects
       const batchUpdate = batch(update)
+      const itemPlaces = R.compose(R.map(R.prop('place')), R.values)
 
       return R.compose(
         batchUpdate(itemPlaces(health), conf.health),
@@ -289,23 +650,62 @@ import WebApp from './web-app'
       }
     }
 
-    function addBorders (dangeon) {
-      const borderRow = R.repeat('x', dangeon[0].length + 2)
+    function addBorders (floor) {
+      return (dangeon) => {
+        const border = config.objects.wall
+        const { cols } = Stat.floor(floor)
+        const borderRow = R.repeat(border, cols + 2)
 
-      const addColBorders = R.map(
-        R.compose(
-          R.append('x'),
-          R.prepend('x')
+        const addColBorders = R.map(
+          R.compose(
+            R.append(border),
+            R.prepend(border)
+          )
         )
+
+        const addBorders = R.compose(
+          R.append(borderRow),
+          R.prepend(borderRow),
+          addColBorders
+        )
+
+        return addBorders(dangeon)
+      }
+    }
+
+    function fromSample (floor, node, data) {
+      const { axis, r1, r2, left, right } = node
+      const { dangeon, error } = data
+
+      if (error) { return data }
+
+      if (r1 !== undefined) {
+        const rows = R.range(r1.y, r2.y)
+        const cols = R.range(r1.x, r2.x)
+        const fillWithSpaces = fill(rows, cols, config.objects.spaces)
+
+        return { room: { r1, r2 }, dangeon: fillWithSpaces(dangeon) }
+      }
+
+      const withRooms = fromSample(
+        floor,
+        left,
+        fromSample(floor, right, data)
       )
 
-      const addBorders = R.compose(
-        R.append(borderRow),
-        R.prepend(borderRow),
-        addColBorders
+      const withCorridors = Tunnel.addCorridor(
+        floor,
+        axis,
+        Room.neighbors(node)
       )
 
-      return addBorders(dangeon)
+      if (withRooms.error || withCorridors.error) {
+        return { error: true }
+      }
+
+      return {
+        dangeon: withCorridors(withRooms.dangeon)
+      }
     }
 
     return {
@@ -314,11 +714,10 @@ import WebApp from './web-app'
       set,
       update,
       batch,
-      itemMap,
-      itemPlaces,
       fill,
       fillWithObjects,
-      addBorders
+      addBorders,
+      fromSample
     }
   }())
 
@@ -326,24 +725,15 @@ import WebApp from './web-app'
     const tasks = (function tasks () {
       function batchAccum (tasks, init) {
         return () => R.reduce((acc, fn) => {
-          console.log(fn)
           return fn(acc)()
         }, init, tasks)
       }
 
-      function randomDamage (damager) {
-        const weapon = Weapon.create(damager.weapon)
-        const min = Weapon.minDamage(weapon)
-        const max = Weapon.maxDamage(weapon)
-
-        return damager.power + Random.inRange(min, max + 1)
-      }
-
       function generateDamage ({ player, enemy }, keeper) {
-        const enemyDamage = R.compose(randomDamage, Stat.enemy)
+        const enemyDamage = R.compose(Weapon.randomDamage, Stat.enemy)
 
         return () => address(keeper({
-          player: randomDamage(player),
+          player: Weapon.randomDamage(player),
           enemy: enemyDamage(enemy.type)
         }))
       }
@@ -352,72 +742,69 @@ import WebApp from './web-app'
         return () => setTimeout(() => address(keeper), delay)
       }
 
-      function gameObjCount (sizeConf) {
-        if (R.is(Array, sizeConf)) {
-          return Random.inRange(sizeConf[0], sizeConf[1] + 1)
-        }
+      // function itemMap (list) {
+      //   const result = {}
 
-        return sizeConf
-      }
+      //   list.forEach(obj => {
+      //     result[obj.place.id] = obj
+      //   })
 
-      function generatePoint (floor, dangeon) {
-        const { rows, cols } = Stat.floor(floor)
-        const createPoint = Point.create(floor)
+      //   return result
+      // }
 
-        function randomPoint () {
-          const col = Random.inRange(0, cols)
-          const row = Random.inRange(0, rows)
-          const point = createPoint(col, row)
-          const isSpaceInPoint = R.compose(Cell.isSpace, Dangeon.get(point))
+      // function generateGameObjects (name) {
+      //   return keeper => model => {
+      //     return () => {
+      //       const floor = model.floor
+      //       const stat = Stat.floor(floor)
+      //       const size = Stat.coundOfObj(floor, name)
+      //       const curObj = config[name]
 
-          if (isSpaceInPoint(dangeon)) {
-            return point
+      //       const type = R.find(x => (
+      //         curObj[x].level === floor
+      //       ), R.keys(curObj))
+
+      //       const health = curObj[type].health
+      //       const formAndSend = R.compose(
+      //         address, keeper, itemMap, R.last, R.mapAccum
+      //       )
+
+      //       const fill = Dangeon.fillWithObjects(model)
+
+      //       return formAndSend(
+      //         (dangeon) => {
+      //           const place = Point.generate(floor, dangeon)
+      //           const updatedDangeon = Dangeon.update(place, stat[name])(dangeon)
+      //           const result = (health === undefined)
+      //             ? { place, type }
+      //             : { place, type, health }
+
+      //           return [updatedDangeon, result]
+      //         }, fill(model.dangeon), R.range(0, size))
+      //     }
+      //   }
+      // }
+
+      // function generatePlayer (keeper) {
+      //   return ({ floor, dangeon, player }) => () => {
+      //     const send = R.compose(address, keeper)
+      //     return send(Point.generate(floor, dangeon))
+      //   }
+      // }
+
+      function generateDangeon (level, p1, p2, initialState, guard = 0) {
+        const sample = DangeonTree.create(level, { p1, p2 })
+        const dangeon = Dangeon.fromSample(level, sample, initialState)
+
+        if (dangeon.error) {
+          if (guard > 9) {
+            throw new Error('Configuration Error! Wrong room / cooridor settings.')
           }
 
-          return randomPoint()
+          return generateDangeon(level, p1, p2, initialState, guard + 1)
         }
 
-        return randomPoint()
-      }
-
-      function generateGameObjects (name) {
-        return keeper => model => {
-          return () => {
-            const floor = model.floor
-            const stat = Stat.floor(floor)
-            const size = gameObjCount(stat[name])
-            const curObj = config[name]
-
-            const type = R.find(x => (
-              curObj[x].level === floor
-            ), R.keys(curObj))
-
-            const health = curObj[type].health
-            const formAndSend = R.compose(
-              address, keeper, Dangeon.itemMap, R.last, R.mapAccum
-            )
-
-            const fill = Dangeon.fillWithObjects(model)
-
-            return formAndSend(
-              (dangeon) => {
-                const place = generatePoint(floor, dangeon)
-                const updatedDangeon = Dangeon.update(place, stat[name])(dangeon)
-                const result = (health === undefined)
-                  ? { place, type }
-                  : { place, type, health }
-
-                return [updatedDangeon, result]
-              }, fill(model.dangeon), R.range(0, size))
-          }
-        }
-      }
-
-      function generatePlayer (keeper) {
-        return ({ floor, dangeon, player }) => () => {
-          const send = R.compose(address, keeper)
-          return send(generatePoint(floor, dangeon))
-        }
+        return dangeon
       }
 
       function genWorld (initialState, keep) {
@@ -427,256 +814,13 @@ import WebApp from './web-app'
           const p1 = { x: 0, y: 0 }
           const p2 = { x: cols, y: rows }
 
-          function split (axis, splitAt, p1, p2) {
-            const p12 = R.assoc(axis, splitAt, p2)
-            const p21 = R.assoc(axis, splitAt + 1, p1)
-
-            return {
-              left: { p1, p2: p12 },
-              right: { p1: p21, p2 }
-            }
-          }
-
-          function formRoom (bound) {
-            const { p1, p2 } = bound
-            const x1 = Random.inRange(p1.x + 1, p2.x - config.minRoomSize - 1)
-            const y1 = Random.inRange(p1.y + 1, p2.y - config.minRoomSize - 1)
-
-            const x2 = Random.inRange(x1 + config.minRoomSize, p2.x - 1)
-            const y2 = Random.inRange(y1 + config.minRoomSize, p2.y - 1)
-
-            const r1 = { x: x1, y: y1 }
-            const r2 = { x: x2, y: y2 }
-
-            return R.merge(bound, { r1, r2 })
-          }
-
-          function analysisRooms (left, right, axis) {
-            const top = Math.min(left.r1[axis], right.r1[axis])
-            const bottom = Math.max(left.r2[axis], right.r2[axis])
-
-            const leftLength = left.r2[axis] - left.r1[axis]
-            const rightLength = right.r2[axis] - right.r1[axis]
-
-            const topDiff = Math.abs(left.r1[axis] - right.r1[axis])
-            const bottomDiff = Math.abs(left.r2[axis] - right.r2[axis])
-
-            const intersection = leftLength + rightLength - bottom + top
-            const exceeding = Math.max(topDiff, bottomDiff)
-
-            return { intersection, exceeding }
-          }
-
-          function tunnel (axis, width, length, value) {
-            const rows = axis === 'x' ? length : width
-            const cols = axis === 'x' ? width : length
-
-            return Dangeon.fill(rows, cols, value) // config.objects.space)
-          }
-
-          function calcWidth (p1, p2) {
-            const delta = config.corridorWidth / 2
-            const mid = p1 + Math.ceil((p2 - p1) / 2)
-
-            return {
-              p1: mid - Math.ceil(delta),
-              p2: mid + Math.floor(delta)
-            }
-          }
-
-          function directTunnel (left, right, axis) {
-            const pair = axis === 'x' ? 'y' : 'x'
-            const top = Math.max(left.r1[axis], right.r1[axis])
-            const bottom = Math.min(left.r2[axis], right.r2[axis])
-            const { p1, p2 } = calcWidth(top, bottom)
-
-            const width = R.range(p1, p2)
-            const length = R.range(left.r2[pair], right.r1[pair])
-
-            return tunnel(axis, width, length, 'a')
-          }
-
-          function fillAngularTunnel (axis, top, sideTop, bottom, sideBottom) {
-            const pair = axis === 'x' ? 'y' : 'x'
-            const widthTop = R.range(sideTop.p1, sideTop.p2)
-            const widthBottom = R.range(sideBottom.p1, sideBottom.p2)
-
-            const lengthTop = top.r1[pair] > sideBottom.p1
-              ? R.range(sideBottom.p1, top.r1[pair])
-              : R.range(top.r2[pair], sideBottom.p1)
-
-            const lengthBottom = sideTop.p1 < bottom.r1[axis]
-              ? R.range(sideTop.p1, bottom.r1[axis])
-              : R.range(bottom.r2[axis], sideTop.p2)
-
-            return R.pipe(
-              tunnel(axis, widthTop, lengthTop, 'o'),
-              tunnel(pair, widthBottom, lengthBottom, 'o')
-            )
-          }
-
-          function angularTunnel (left, right, axis) {
-            const pair = axis === 'x' ? 'y' : 'x'
-
-            if (axis === 'y') {
-              const top = (right.r1[axis] < left.r1[axis])
-                ? right
-                : left
-              const bottom = top === right ? left : right
-
-              const p11 = top.r1[axis]
-              const p12 = Math.min(top.r2[axis], bottom.r1[axis] - 1)
-              const sideTop = calcWidth(p11, p12)
-
-              const p21 = bottom.r1[pair]
-              const p22 = bottom.r2[pair]
-              const sideBottom = calcWidth(p21, p22)
-
-              return fillAngularTunnel(axis, top, sideTop, bottom, sideBottom)
-            }
-
-            const top = (left.r2[axis] > right.r2[axis])
-              ? left
-              : right
-            const bottom = top === left ? right : left
-
-            const p11 = top.r2[axis]
-            const p12 = Math.max(top.r1[axis], bottom.r2[axis] + 1)
-            const sideTop = calcWidth(p11, p12)
-
-            const p21 = bottom.r1[pair]
-            const p22 = bottom.r2[pair]
-            const sideBottom = calcWidth(p21, p22)
-
-            return fillAngularTunnel(axis, top, sideTop, bottom, sideBottom)
-          }
-
-          function addCorridor (splitAxis, { left, right }) {
-            const axis = splitAxis === 'x' ? 'y' : 'x'
-            const analysis = analysisRooms(left, right, axis)
-
-            if (analysis.intersection > config.corridorWidth) {
-              return directTunnel(left, right, axis)
-            }
-
-            if (analysis.exceeding > config.corridorWidth) {
-              return angularTunnel(left, right, axis)
-            }
-
-            throw new Error('Configuration Error! Room size must be 2 times as corridor size.')
-          }
-
-          function sampleToDangeon (node, model) {
-            const { axis, r1, r2, left, right } = node
-
-            if (r1 !== undefined) {
-              const rows = R.range(r1.y, r2.y)
-              const cols = R.range(r1.x, r2.x)
-              const fillWithSpaces = Dangeon.fill(rows, cols, config.objects.spaces)
-
-              return { room: { r1, r2 }, dangeon: fillWithSpaces(model.dangeon) }
-            }
-
-            const withRooms = sampleToDangeon(left, sampleToDangeon(right, model))
-            const fillWithCorridors = addCorridor(axis, roomsForConection(node))
-
-            return {
-              dangeon: fillWithCorridors(withRooms.dangeon)
-            }
-          }
-
-          function adjacentZone (fn, { left, right }) {
-            if (fn(left.p1, left.p2)) { return left }
-            if (fn(right.p1, right.p2)) { return right }
-
-            throw new Error(`There is not adjacent zone!`)
-          }
-
-          function adjacentRoom (fn, node) {
-            if (node.r1 !== undefined) {
-              return node
-            }
-
-            return adjacentRoom(fn, adjacentZone(fn, node))
-          }
-
-          function leftAdjacent (p0, axis) {
-            return (p1, p2) => {
-              if (axis === 'x') {
-                return p1.y === p0.y && p2.x + 1 === p0.x
-              }
-
-              return p2.x === p0.x && p2.y === p0.y
-            }
-          }
-
-          function rightAdjacent (p0, axis) {
-            return (p1, p2) => {
-              if (axis === 'x') {
-                return p1.x === p0.x && p1.y === p0.y
-              }
-
-              return p1.y - 1 === p0.y && p2.x === p0.x
-            }
-          }
-
-          function roomsForConection (node) {
-            const { axis, left, right } = node
-
-            if (node.r1 !== undefined) { return node }
-
-            const adjacentPoint = axis === 'x' ? right.p1 : left.p2
-            const testLeft = leftAdjacent(adjacentPoint, axis)
-            const testRight = rightAdjacent(adjacentPoint, axis)
-
-            const leftRoom = adjacentRoom(testLeft, left)
-            const rightRoom = adjacentRoom(testRight, right)
-
-            return { left: leftRoom, right: rightRoom }
-          }
-
-          function randomSplit ({ p1, p2 }, pref) {
-            const axes = ['x', 'y']
-            const axesWithPref = R.concat(pref, axes)
-            const axis = Random.oneFrom(axesWithPref)
-            const opposite = axis === 'x' ? 'y' : 'x'
-            const newPref = axesWithPref.length > config.sizeOfPreferences
-              ? [opposite]
-              : R.append(opposite, pref)
-
-            const p1prime = p1[axis] + config.minZoneSize
-            const p2prime = p2[axis] - config.minZoneSize
-
-            if (p1prime < p2prime) {
-              const splitValue = Random.inRange(p1prime, p2prime)
-              const { left, right } = split(axis, splitValue, p1, p2)
-
-              return {
-                axis,
-                p1,
-                p2,
-                left: randomSplit(left, newPref),
-                right: randomSplit(right, newPref)
-              }
-            }
-
-            return formRoom({ p1, p2 })
-          }
-
           const send = R.compose(address, keep, R.merge(initialState))
-          const sample = randomSplit({ p1, p2 }, [])
-          const { dangeon } = sampleToDangeon(sample, initialState)
-
-          return send({ dangeon })
+          return send(generateDangeon(level, p1, p2, initialState))
         }
       }
 
       return {
         batchAccum,
-        generateEnemies: generateGameObjects('enemies'),
-        generateWeapons: generateGameObjects('weapons'),
-        generateHealth: generateGameObjects('health'),
-        generatePlayer,
         generateDamage,
         pause,
         genWorld
@@ -825,10 +969,9 @@ import WebApp from './web-app'
         }
       }
 
-      function useWorld (world) {
-        return (model) => {
-          console.log(world, model)
-          return [world, tasks.generatePlayer(keep('dangeon')(world))]
+      function keepWorld (world) {
+        return () => {
+          return [world]
         }
       }
 
@@ -842,11 +985,13 @@ import WebApp from './web-app'
           if (action === undefined) { return noop }
           return action
         },
-        useWorld
+        keepWorld
       }
     }())
 
     function createDangeon () {
+      const initialFloor = 1
+
       const initialState = {
         player: {
           level: 1,
@@ -856,16 +1001,16 @@ import WebApp from './web-app'
           weapon: 'stick'
         },
 
-        floor: 1,
+        floor: initialFloor,
 
-        dangeon: Dangeon.create(Stat.floor(1)),
+        dangeon: Dangeon.create(Stat.floor(initialFloor)),
 
         gameOver: false
       }
 
       return [
         initialState,
-        tasks.genWorld(initialState, actions.useWorld)
+        tasks.genWorld(initialState, actions.keepWorld)
       ]
     }
 
@@ -939,7 +1084,7 @@ import WebApp from './web-app'
 
       function reform (model) {
         const prepare = R.compose(
-          Dangeon.addBorders,
+          Dangeon.addBorders(model.floor),
           Dangeon.fillWithObjects(model)
         )
 

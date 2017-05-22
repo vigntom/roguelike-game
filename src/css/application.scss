@@ -27,8 +27,8 @@ $fourth-offset: $std-offset / 4;
   display: inline-block;
   width: 20px;
   height: 20px;
-  border-top: 1px solid gray;
-  border-left: 1px solid gray;
+  // border-top: 1px solid gray;
+  // border-left: 1px solid gray;
   background-color: $color-white;
 }
 
@@ -54,26 +54,6 @@ $fourth-offset: $std-offset / 4;
 
 .cell-space {
   background-color: $color-space;
-}
-
-.cell-test-a {
-  background-color: yellow;
-}
-
-.cell-test-b {
-  background-color: orange;
-}
-
-.cell-test-c {
-  background-color: darken(orange, 10%);
-}
-
-.cell-test-d {
-  background-color: black(.2);
-}
-
-.cell-test-e {
-  background-color: black(.5);
 }
 
 .info-item {
