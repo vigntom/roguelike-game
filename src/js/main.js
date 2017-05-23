@@ -239,7 +239,7 @@ function debug (msg) {
 
     function generate (floor, dangeon) {
       const { rows, cols } = Stat.floor(floor)
-      const createPoint = Point.create(floor)
+      const createPoint = create(floor)
 
       function randomPoint () {
         const col = Random.inRange(0, cols)
@@ -470,7 +470,7 @@ function debug (msg) {
   }())
 
   const Tunnel = (function Tunnel () {
-    function tunnel (axis, width, length, value) { // todo: <- fill
+    function fill (axis, width, length, value) {
       const rows = axis === 'x' ? length : width
       const cols = axis === 'x' ? width : length
 
@@ -487,7 +487,7 @@ function debug (msg) {
       }
     }
 
-    function directTunnel (axis, size, left, right) { // -> direct
+    function createDirect (axis, size, left, right) {
       const pair = axis === 'x' ? 'y' : 'x'
       const top = Math.max(left.r1[axis], right.r1[axis])
       const bottom = Math.min(left.r2[axis], right.r2[axis])
@@ -496,10 +496,10 @@ function debug (msg) {
       const width = R.range(p1, p2)
       const length = R.range(left.r2[pair], right.r1[pair])
 
-      return tunnel(axis, width, length, 'a')
+      return fill(axis, width, length, config.objects.space)
     }
 
-    function fillAngularTunnel (axis, top, sideTop, bottom, sideBottom) { // todo: <- fillAngular
+    function fillAngular (axis, top, sideTop, bottom, sideBottom) {
       const pair = axis === 'x' ? 'y' : 'x'
       const widthTop = R.range(sideTop.p1, sideTop.p2)
       const widthBottom = R.range(sideBottom.p1, sideBottom.p2)
@@ -513,12 +513,12 @@ function debug (msg) {
         : R.range(bottom.r2[axis], sideTop.p2)
 
       return R.pipe(
-        tunnel(axis, widthTop, lengthTop, 'o'),
-        tunnel(pair, widthBottom, lengthBottom, 'o')
+        fill(axis, widthTop, lengthTop, config.objects.space),
+        fill(pair, widthBottom, lengthBottom, config.objects.space)
       )
     }
 
-    function angularTunnel (axis, size, left, right) { // todo: createAngular
+    function createAngular (axis, size, left, right) {
       const pair = axis === 'x' ? 'y' : 'x'
 
       if (axis === 'y') {
@@ -535,7 +535,7 @@ function debug (msg) {
         const p22 = bottom.r2[pair]
         const sideBottom = calcWidth(size, p21, p22)
 
-        return fillAngularTunnel(axis, top, sideTop, bottom, sideBottom)
+        return fillAngular(axis, top, sideTop, bottom, sideBottom)
       }
 
       const top = (left.r2[axis] > right.r2[axis])
@@ -551,27 +551,27 @@ function debug (msg) {
       const p22 = bottom.r2[pair]
       const sideBottom = calcWidth(size, p21, p22)
 
-      return fillAngularTunnel(axis, top, sideTop, bottom, sideBottom)
+      return fillAngular(axis, top, sideTop, bottom, sideBottom)
     }
 
-    function addCorridor (floor, splitAxis, { left, right }) { // todo: <- create
+    function create (floor, splitAxis, { left, right }) {
       const axis = splitAxis === 'x' ? 'y' : 'x'
       const analysis = Room.relativePosition(left, right, axis)
       const size = Stat.corridorSize(floor)
 
       if (analysis.intersection > size) {
-        return directTunnel(axis, size, left, right)
+        return createDirect(axis, size, left, right)
       }
 
       if (analysis.exceeding > size) {
-        return angularTunnel(axis, size, left, right)
+        return createAngular(axis, size, left, right)
       }
 
       return { error: true }
     }
 
     return {
-      addCorridor
+      create
     }
   }())
 
@@ -673,27 +673,26 @@ function debug (msg) {
       }
     }
 
-    function fromSample (floor, node, data) {
+    function fromSample (floor, node, dangeon) {
       const { axis, r1, r2, left, right } = node
-      const { dangeon, error } = data
 
-      if (error) { return data }
+      if (dangeon.error) { return dangeon }
 
       if (r1 !== undefined) {
         const rows = R.range(r1.y, r2.y)
         const cols = R.range(r1.x, r2.x)
-        const fillWithSpaces = fill(rows, cols, config.objects.spaces)
+        const fillWithSpaces = fill(rows, cols, config.objects.space)
 
-        return { room: { r1, r2 }, dangeon: fillWithSpaces(dangeon) }
+        return fillWithSpaces(dangeon)
       }
 
       const withRooms = fromSample(
         floor,
         left,
-        fromSample(floor, right, data)
+        fromSample(floor, right, dangeon)
       )
 
-      const withCorridors = Tunnel.addCorridor(
+      const withCorridors = Tunnel.create(
         floor,
         axis,
         Room.neighbors(node)
@@ -703,9 +702,7 @@ function debug (msg) {
         return { error: true }
       }
 
-      return {
-        dangeon: withCorridors(withRooms.dangeon)
-      }
+      return withCorridors(withRooms)
     }
 
     return {
@@ -792,19 +789,20 @@ function debug (msg) {
       //   }
       // }
 
-      function generateDangeon (level, p1, p2, initialState, guard = 0) {
+      function generateDangeon (level, p1, p2, dangeon, guard = 0) {
         const sample = DangeonTree.create(level, { p1, p2 })
-        const dangeon = Dangeon.fromSample(level, sample, initialState)
+        const result = Dangeon.fromSample(level, sample, dangeon)
 
         if (dangeon.error) {
           if (guard > 9) {
+            debug('guard is:', guard)
             throw new Error('Configuration Error! Wrong room / cooridor settings.')
           }
 
-          return generateDangeon(level, p1, p2, initialState, guard + 1)
+          return generateDangeon(level, p1, p2, dangeon, guard + 1)
         }
 
-        return dangeon
+        return result
       }
 
       function genWorld (initialState, keep) {
@@ -815,7 +813,14 @@ function debug (msg) {
           const p2 = { x: cols, y: rows }
 
           const send = R.compose(address, keep, R.merge(initialState))
-          return send(generateDangeon(level, p1, p2, initialState))
+          const dangeon = generateDangeon(level, p1, p2, initialState.dangeon)
+          const player = R.assoc(
+            'place',
+            Point.generate(level, dangeon),
+            initialState.player
+          )
+
+          return send({ dangeon, player })
         }
       }
 
@@ -951,9 +956,9 @@ function debug (msg) {
           const isPlaceSpace = R.compose(Cell.isSpace, Dangeon.get(moveTo))
 
           if (model.gameOver) { return [{}] }
-          if (enemy[id]) { return attackEnemy(moveTo, model) }
-          if (weapon[id]) { return takeWeapon(moveTo, model) }
-          if (health[id]) { return takeHealth(moveTo, model) }
+          // if (enemy[id]) { return attackEnemy(moveTo, model) }
+          // if (weapon[id]) { return takeWeapon(moveTo, model) }
+          // if (health[id]) { return takeHealth(moveTo, model) }
 
           if (isPlaceSpace(model.dangeon)) {
             return [makeStep(moveTo, model)]
@@ -990,7 +995,7 @@ function debug (msg) {
     }())
 
     function createDangeon () {
-      const initialFloor = 1
+      const initialFloor = 4
 
       const initialState = {
         player: {
