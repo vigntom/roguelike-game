@@ -2,26 +2,18 @@
 
 import WebApp from './web-app'
 
-function debug (msg) {
-  return arg => {
-    console.log(msg, ' :', arg)
-    return arg
-  }
-}
-
 (function application (root$) {
   const config = (function config () {
     const roomSizeRate = 0.8           // of zone size
-    const corridorSizeRate = 0.4       // of room size
+    const corridorSizeRate = 0.6       // of room size
     const zoneSizeFactor = 2           // factor to zone size calculation
 
     const base = {
       pause: 2000,                 // pause before to start a new game
       sizeOfPreferences: 5,        // is used by zone generator
       enemyCnance: 0.75,           // per room
-      roomSizeRate: 0.8,           // of zone size
-      corridorSizeRate: 0.4,       // of room size
-      dangeonRedundancy: 10        // how many dungeon trees are created to choose from
+      dangeonRedundancy: 10,       // how many dungeon trees are created to choose from
+      enemyFactor: 0.75            // per room
     }
 
     // zone size is based on the number of rooms on the floor
@@ -29,6 +21,13 @@ function debug (msg) {
     // game objects distribution
     //   weapon: one per floor
     //   health: depending on enemies and their average damage
+
+    const viewport = {
+      width: 1024,
+      height: 624,
+      rows: 30,
+      cols: 50
+    }
 
     const objects = {
       wall: 'x',
@@ -53,9 +52,9 @@ function debug (msg) {
     const floors = {
       'floor-1': { rows: 60, cols: 90, rooms: 9 },
       'floor-2': { rows: 90, cols: 120, rooms: 13 },
-      'floor-3': { rows: 120, cols: 150, rooms: 17 },
+      'floor-3': { rows: 120, cols: 150, rooms: 18 },
       'floor-4': { rows: 150, cols: 180, rooms: 21 },
-      'floor-5': { rows: 50, cols: 50, rooms: 3 }
+      'floor-5': { rows: 60, cols: 100, rooms: 3 }
     }
 
     const levels = {
@@ -72,15 +71,15 @@ function debug (msg) {
       'bone knife': { level: 2, power: 15, sd: 0.13 },
       'copper dagger': { level: 3, power: 20, sd: 0.1 },
       'bronze ax': { level: 4, power: 25, sd: 0.08 },
-      'simple sword': { level: 5, attack: 30, sd: 0.05 }
+      'simple sword': { level: 5, power: 30, sd: 0.05 }
     }
 
     const enemies = {
-      goblin: { level: 1, power: 5, health: 75, value: 10, weapon: 'stick' },
-      skeleton: { level: 2, power: 10, health: 90, value: 20, weapon: 'cane' },
-      gnoll: { level: 3, power: 15, health: 110, value: 35, weapon: 'copper dagger' },
-      dwarf: { level: 4, power: 20, health: 125, value: 40, weapon: 'bronze ax' },
-      boss: { level: 5, power: 30, health: 200, value: 100, weapon: 'simple sword' }
+      goblin: { level: 1, power: 5, health: 75, value: 10 },
+      skeleton: { level: 2, power: 10, health: 90, value: 20 },
+      gnoll: { level: 3, power: 15, health: 110, value: 35 },
+      dwarf: { level: 4, power: 20, health: 125, value: 40 },
+      boss: { level: 5, power: 30, count: 1, health: 200, value: 100 }
     }
 
     const health = {
@@ -108,7 +107,7 @@ function debug (msg) {
       const minRoomSize = Math.min(roomSize.x, roomSize.y)
 
       const maybeSize = Math.floor(minRoomSize * corridorSizeRate)
-      const halfRoomSize = Math.floor(minRoomSize / 2)
+      const halfRoomSize = Math.ceil(minRoomSize / 2)
 
       const corridorSize = maybeSize < halfRoomSize
         ? maybeSize
@@ -124,6 +123,7 @@ function debug (msg) {
     }
 
     return R.merge(base, {
+      viewport,
       objects,
       marks,
       floors: updateFloors(floors),
@@ -151,15 +151,6 @@ function debug (msg) {
       return config.floors[name]
     }
 
-    function countOfObj (floorName, objName) {
-      const obj = floor(floorName)[objName]
-      if (R.is(Array, obj)) {
-        return Random.inRange(obj[0], obj[1] + 1)
-      }
-
-      return obj
-    }
-
     function roomSize (name) {
       return floor(name).roomSize
     }
@@ -172,6 +163,17 @@ function debug (msg) {
       return floor(name).corridorSize
     }
 
+    function cellHeight () {
+      const v = config.viewport
+      // 12px is padding
+      return Math.floor((v.height - 24) / v.rows)
+    }
+
+    function cellWidth () {
+      const v = config.viewport
+      return Math.floor((v.width - 24) / v.cols)
+    }
+
     return {
       weapon,
       enemy,
@@ -179,7 +181,8 @@ function debug (msg) {
       roomSize,
       zoneSize,
       corridorSize,
-      countOfObj
+      cellHeight: cellHeight(),
+      cellWidth: cellWidth()
     }
   }())
 
@@ -199,10 +202,10 @@ function debug (msg) {
   }())
 
   const Point = (function Point () {
-    const moveUp = p => update(p, p.x, p.y - 1)
-    const moveDown = p => update(p, p.x, p.y + 1)
-    const moveLeft = p => update(p, p.x - 1, p.y)
-    const moveRight = p => update(p, p.x + 1, p.y)
+    const moveUp = p => update(p.x, p.y - 1, p)
+    const moveDown = p => update(p.x, p.y + 1, p)
+    const moveLeft = p => update(p.x - 1, p.y, p)
+    const moveRight = p => update(p.x + 1, p.y, p)
 
     function createPoint (level, x, y) {
       const size = Stat.floor(level)
@@ -229,7 +232,7 @@ function debug (msg) {
       }
     }
 
-    function update (p, x, y) {
+    function update (x, y, p) {
       const result = createPoint(p.level, x, y)
 
       if (result.error) { return p }
@@ -396,7 +399,7 @@ function debug (msg) {
       return { r1, r2 }
     }
 
-    function relativePosition (left, right, axis) { // todo: analysisRoom -> relativePosition
+    function relativePosition (left, right, axis) {
       const top = Math.min(left.r1[axis], right.r1[axis])
       const bottom = Math.max(left.r2[axis], right.r2[axis])
 
@@ -576,6 +579,8 @@ function debug (msg) {
   }())
 
   const Dangeon = (function Dangeon () {
+    const get = R.curry((pos, dangeon) => dangeon[pos.y][pos.x])
+
     function create ({ rows, cols }) {
       const fillWith = R.compose(
         R.repeat(R.__, rows),
@@ -592,22 +597,16 @@ function debug (msg) {
         ), R.__, points)
     }
 
-    function update (point, cell) {
-      if (point === undefined) { return R.identity }
+    function update (point, cell, dangeon) {
+      if (point === undefined) { return dangeon }
 
-      return function (dangeon) {
-        const pointIsWall = R.compose(Cell.isWall, get(point))
+      const pointIsWall = R.compose(Cell.isWall, get(point))
 
-        if (pointIsWall(dangeon)) {
-          throw new Error(`Position 'x:${point.x}, y:${point.y}' is occupied by a wall.`)
-        }
-
-        return set(point, cell, dangeon)
+      if (pointIsWall(dangeon)) {
+        throw new Error(`Position 'x:${point.x}, y:${point.y}' is occupied by a wall.`)
       }
-    }
 
-    function get (pos) {
-      return dangeon => dangeon[pos.y][pos.x]
+      return set(point, cell, dangeon)
     }
 
     function set (pos, cell, dangeon) {
@@ -620,57 +619,19 @@ function debug (msg) {
       return result
     }
 
-    function fillWithObjects ({ health, weapon, enemy, player }) {
-      const conf = config.objects
-      const batchUpdate = batch(update)
-      const itemPlaces = R.compose(R.map(R.prop('place')), R.values)
+    function fill (rows, cols, value, dangeon) {
+      const result = dangeon.concat()
 
-      return R.compose(
-        batchUpdate(itemPlaces(health), conf.health),
-        batchUpdate(itemPlaces(weapon), conf.weapon),
-        batchUpdate(itemPlaces(enemy), conf.enemy),
-        update(player.place, conf.player)
-      )
-    }
+      R.forEach(rowId => {
+        const row = result[rowId].concat()
+        R.forEach(colId => {
+          row[colId] = value
+        }, cols)
 
-    function fill (rows, cols, value) {
-      return (dangeon) => {
-        const result = dangeon.concat()
+        result[rowId] = row
+      }, rows)
 
-        R.forEach(rowId => {
-          const row = result[rowId].concat()
-          R.forEach(colId => {
-            row[colId] = value
-          }, cols)
-
-          result[rowId] = row
-        }, rows)
-
-        return result
-      }
-    }
-
-    function addBorders (floor) {
-      return (dangeon) => {
-        const border = config.objects.wall
-        const { cols } = Stat.floor(floor)
-        const borderRow = R.repeat(border, cols + 2)
-
-        const addColBorders = R.map(
-          R.compose(
-            R.append(border),
-            R.prepend(border)
-          )
-        )
-
-        const addBorders = R.compose(
-          R.append(borderRow),
-          R.prepend(borderRow),
-          addColBorders
-        )
-
-        return addBorders(dangeon)
-      }
+      return result
     }
 
     function fromSample (floor, node, dangeon) {
@@ -681,9 +642,7 @@ function debug (msg) {
       if (r1 !== undefined) {
         const rows = R.range(r1.y, r2.y)
         const cols = R.range(r1.x, r2.x)
-        const fillWithSpaces = fill(rows, cols, config.objects.space)
-
-        return fillWithSpaces(dangeon)
+        return fill(rows, cols, config.objects.space, dangeon)
       }
 
       const withRooms = fromSample(
@@ -708,13 +667,79 @@ function debug (msg) {
     return {
       create,
       get,
-      set,
-      update,
+      set: R.curry(set),
+      update: R.curry(update),
       batch,
-      fill,
-      fillWithObjects,
-      addBorders,
-      fromSample
+      fill: R.curry(fill),
+      fromSample: R.curry(fromSample)
+    }
+  }())
+
+  const Viewport = (function Viewport () {
+    function create (floor, place) {
+      if (place === undefined) {
+        return createAtCenter(floor)
+      }
+
+      return createAtPlace(floor, place)
+    }
+
+    function createAtCenter (floor) {
+      const { rows, cols } = Stat.floor(floor)
+      const vRows = config.viewport.rows
+      const vCols = config.viewport.cols
+      const halfCols = Math.round(cols / 2)
+      const halfRows = Math.round(rows / 2)
+      const halfVCols = Math.round(vCols / 2)
+      const halfVRows = Math.round(vRows / 2)
+
+      const p0 = Point.create(floor)(
+        halfCols - halfVCols,
+        halfRows - halfVRows
+      )
+
+      const p1 = Point.create(floor)(
+        halfCols + (vCols - halfVCols),
+        halfRows + (vRows - halfVRows)
+      )
+
+      return { p0, p1 }
+    }
+
+    function createAtPlace (floor, place) {
+      const { rows, cols } = Stat.floor(floor)
+      const vRows = config.viewport.rows
+      const vCols = config.viewport.cols
+      const halfVRows = Math.round(vRows / 2)
+      const halfVCols = Math.round(vCols / 2)
+      const pointOnFloor = Point.create(floor)
+
+      const maybeX0 = place.x - halfVCols
+      const maybeX1 = place.x + (vCols - halfVCols)
+
+      const maybeY0 = place.y - halfVRows
+      const maybeY1 = place.y + (vRows - halfVRows)
+
+      const [x0, x1] = align(maybeX0, maybeX1, 0, cols)
+      const [y0, y1] = align(maybeY0, maybeY1, 0, rows)
+
+      return { p0: pointOnFloor(x0, y0), p1: pointOnFloor(x1, y1) }
+    }
+
+    function align (a, b, boundA, boundB) {
+      if (a < boundA) {
+        return [boundA, b - a]
+      }
+
+      if (b >= boundB) {
+        return [a - (b - boundB) - 1, boundB - 1]
+      }
+
+      return [a, b]
+    }
+
+    return {
+      create
     }
   }())
 
@@ -727,11 +752,11 @@ function debug (msg) {
       }
 
       function generateDamage ({ player, enemy }, keeper) {
-        const enemyDamage = R.compose(Weapon.randomDamage, Stat.enemy)
+        const enemyDamage = Weapon.randomDamage(enemy)
 
         return () => address(keeper({
           player: Weapon.randomDamage(player),
-          enemy: enemyDamage(enemy.type)
+          enemy: enemyDamage
         }))
       }
 
@@ -739,63 +764,12 @@ function debug (msg) {
         return () => setTimeout(() => address(keeper), delay)
       }
 
-      // function itemMap (list) {
-      //   const result = {}
-
-      //   list.forEach(obj => {
-      //     result[obj.place.id] = obj
-      //   })
-
-      //   return result
-      // }
-
-      // function generateGameObjects (name) {
-      //   return keeper => model => {
-      //     return () => {
-      //       const floor = model.floor
-      //       const stat = Stat.floor(floor)
-      //       const size = Stat.coundOfObj(floor, name)
-      //       const curObj = config[name]
-
-      //       const type = R.find(x => (
-      //         curObj[x].level === floor
-      //       ), R.keys(curObj))
-
-      //       const health = curObj[type].health
-      //       const formAndSend = R.compose(
-      //         address, keeper, itemMap, R.last, R.mapAccum
-      //       )
-
-      //       const fill = Dangeon.fillWithObjects(model)
-
-      //       return formAndSend(
-      //         (dangeon) => {
-      //           const place = Point.generate(floor, dangeon)
-      //           const updatedDangeon = Dangeon.update(place, stat[name])(dangeon)
-      //           const result = (health === undefined)
-      //             ? { place, type }
-      //             : { place, type, health }
-
-      //           return [updatedDangeon, result]
-      //         }, fill(model.dangeon), R.range(0, size))
-      //     }
-      //   }
-      // }
-
-      // function generatePlayer (keeper) {
-      //   return ({ floor, dangeon, player }) => () => {
-      //     const send = R.compose(address, keeper)
-      //     return send(Point.generate(floor, dangeon))
-      //   }
-      // }
-
       function generateDangeon (level, p1, p2, dangeon, guard = 0) {
         const sample = DangeonTree.create(level, { p1, p2 })
         const result = Dangeon.fromSample(level, sample, dangeon)
 
         if (dangeon.error) {
           if (guard > 9) {
-            debug('guard is:', guard)
             throw new Error('Configuration Error! Wrong room / cooridor settings.')
           }
 
@@ -804,6 +778,67 @@ function debug (msg) {
 
         return result
       }
+
+      function findItem (list, level) {
+        return R.find(
+          key => list[key].level === level,
+          R.keys(list)
+        )
+      }
+
+      const generatePlayer = R.curry((level, player, dangeon) => {
+        const point = Point.generate(level, dangeon)
+        return [
+          { player: R.assoc('place', point, player) },
+          Dangeon.update(point, config.marks.player, dangeon)
+        ]
+      })
+
+      const generateEnemies = R.curry((level, count, dangeon) => {
+        const result = {}
+        const type = findItem(config.enemies, level)
+        const weapon = findItem(config.weapons, level)
+
+        R.forEach(() => {
+          const place = Point.generate(level, dangeon)
+
+          result[place.id] = R.merge(
+            config.enemies[type],
+            { type, place, weapon }
+          )
+        }, R.range(0, count))
+
+        return [{ enemy: result }, dangeon]
+      })
+
+      const generateHealth = R.curry((level, count, dangeon) => {
+        const result = {}
+        const type = findItem(config.health, level)
+
+        R.forEach(() => {
+          const place = Point.generate(level, dangeon)
+
+          result[place.id] = R.merge(
+            config.health[type],
+            { type, place }
+          )
+        }, R.range(0, count))
+
+        return [{ health: result }, dangeon]
+      })
+
+      const generateWeapon = R.curry((level, dangeon) => {
+        const result = {}
+        const place = Point.generate(level, dangeon)
+        const type = findItem(config.weapons, level)
+
+        result[place.id] = { type, place }
+
+        return [
+          { weapon: result },
+          Dangeon.update(place, config.marks.weapon, dangeon)
+        ]
+      })
 
       function genWorld (initialState, keep) {
         return () => {
@@ -814,13 +849,20 @@ function debug (msg) {
 
           const send = R.compose(address, keep, R.merge(initialState))
           const dangeon = generateDangeon(level, p1, p2, initialState.dangeon)
-          const player = R.assoc(
-            'place',
-            Point.generate(level, dangeon),
-            initialState.player
-          )
 
-          return send({ dangeon, player })
+          const listOfGenerators = [
+            generatePlayer(level, initialState.player),
+            generateWeapon(level),
+            generateEnemies(level, Stat.floor(level).rooms),
+            generateHealth(level, Stat.floor(level).rooms)
+          ]
+
+          const gameObjects = R.reduce(([acc, data], generator) => {
+            const result = generator(data)
+            return [R.merge(acc, result[0]), result[1]]
+          }, [{}, dangeon], listOfGenerators)
+
+          return send(R.merge({ dangeon }, gameObjects[0]))
         }
       }
 
@@ -851,7 +893,9 @@ function debug (msg) {
         R.assocPath(['player', 'place'], place, model)
       )
 
-      const newGame = () => createDangeon()
+      const newGame = () => {
+        return createDangeon()
+      }
 
       function analyzeAttack (place, model) {
         const id = place.id
@@ -956,9 +1000,10 @@ function debug (msg) {
           const isPlaceSpace = R.compose(Cell.isSpace, Dangeon.get(moveTo))
 
           if (model.gameOver) { return [{}] }
-          // if (enemy[id]) { return attackEnemy(moveTo, model) }
-          // if (weapon[id]) { return takeWeapon(moveTo, model) }
-          // if (health[id]) { return takeHealth(moveTo, model) }
+
+          if (enemy && enemy[id]) { return attackEnemy(moveTo, model) }
+          if (weapon && weapon[id]) { return takeWeapon(moveTo, model) }
+          if (health && health[id]) { return takeHealth(moveTo, model) }
 
           if (isPlaceSpace(model.dangeon)) {
             return [makeStep(moveTo, model)]
@@ -994,28 +1039,30 @@ function debug (msg) {
       }
     }())
 
-    function createDangeon () {
-      const initialFloor = 4
+    function createDangeon (newFloor, savedPlayer) {
+      const player = savedPlayer || {
+        level: 1,
+        health: 100,
+        power: 10,
+        experience: 0,
+        weapon: 'stick'
+      }
 
-      const initialState = {
-        player: {
-          level: 1,
-          health: 100,
-          power: 10,
-          experience: 0,
-          weapon: 'stick'
-        },
+      const floor = newFloor || 1
 
-        floor: initialFloor,
-
-        dangeon: Dangeon.create(Stat.floor(initialFloor)),
-
+      const model = {
+        player,
+        enemy: {},
+        health: {},
+        weapon: {},
+        floor,
+        dangeon: Dangeon.create(Stat.floor(floor)),
         gameOver: false
       }
 
       return [
-        initialState,
-        tasks.genWorld(initialState, actions.keepWorld)
+        model,
+        tasks.genWorld(model, actions.keepWorld)
       ]
     }
 
@@ -1029,10 +1076,38 @@ function debug (msg) {
 
       document.body.addEventListener('keydown', keyDownHandler)
 
+      function fillWithObjects ({ health, weapon, enemy, player }) {
+        const conf = config.objects
+        const batchUpdate = Dangeon.batch(Dangeon.update)
+        const itemPlaces = R.compose(R.map(R.prop('place')), R.values)
+
+        return R.compose(
+          batchUpdate(itemPlaces(health), conf.health),
+          batchUpdate(itemPlaces(weapon), conf.weapon),
+          batchUpdate(itemPlaces(enemy), conf.enemy),
+          Dangeon.update(player.place, conf.player)
+        )
+      }
+
       const app = (function app () {
-        function App ({ dangeon, player, floor, gameOver }) {
+        function App ({ dangeon, viewport, player, floor, gameOver }) {
           const { health, power, level, experience } = player
           const weapon = Stat.weapon(player.weapon).power
+          const cellHeight = Stat.cellHeight
+          const cellWidth = Stat.cellWidth
+          const dangeonStyle = {
+            width: config.viewport.width,
+            height: config.viewport.height
+          }
+
+          const rowStyle = {
+            height: cellHeight
+          }
+
+          const cellStyle = {
+            height: cellHeight,
+            width: cellWidth
+          }
 
           return h('div', {
             className: 'game'
@@ -1066,20 +1141,21 @@ function debug (msg) {
                 h('p', {}, floor.toString())
               )
             ),
-            h('div', { className: 'dangeon' },
+            h('div', { className: 'dangeon rounded', style: dangeonStyle },
               R.map(rowId => (
-                h('div', { className: 'dangeon-row', key: rowId },
+                h('div', { className: 'dangeon-row', key: rowId, style: rowStyle },
                   R.map(cellId => (
                     h('div', {
                       className: [
                         'dangeon-cell',
                         config.marks[dangeon[rowId][cellId]]
                       ].join(' '),
-                      key: cellId
+                      key: cellId,
+                      style: cellStyle
                     })
-                  ), R.range(0, dangeon[rowId].length))
+                  ), R.range(viewport.p0.x, viewport.p1.x))
                 )
-              ), R.range(0, dangeon.length))
+              ), R.range(viewport.p0.y, viewport.p1.y))
             )
           )
         }
@@ -1088,12 +1164,14 @@ function debug (msg) {
       }())
 
       function reform (model) {
-        const prepare = R.compose(
-          Dangeon.addBorders(model.floor),
-          Dangeon.fillWithObjects(model)
+        const { dangeon, floor, player } = model
+        const fill = fillWithObjects(model)
+        const viewport = Viewport.create(
+          floor,
+          player.place
         )
 
-        return R.merge(model, { dangeon: prepare(model.dangeon) })
+        return R.merge(model, { dangeon: fill(dangeon), viewport })
       }
 
       return function render (model) {

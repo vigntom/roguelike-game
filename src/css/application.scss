@@ -10,25 +10,33 @@ $std-offset: 12px;
 $half-offset: $std-offset / 2;
 $fourth-offset: $std-offset / 4;
 
+// $cell-size: 20px;
+
+.rounded {
+  border-radius: $half-offset;
+}
+
 .game {
   text-align: center;
 }
 
 .dangeon {
+  @include stack-effect(2);
   display: inline-block;
-  white-space: nowrap;
+  // width: 1024px;
+  // height: 624px;
+  padding: $std-offset;
+  background: black(.7);
 }
 
 .dangeon-row {
-  height: 20px;
+  // height: $cell-size;
 }
 
 .dangeon-cell {
   display: inline-block;
-  width: 20px;
-  height: 20px;
-  // border-top: 1px solid gray;
-  // border-left: 1px solid gray;
+  // width: $cell-size;
+  // height: $cell-size;
   background-color: $color-white;
 }
 

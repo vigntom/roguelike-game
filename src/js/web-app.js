@@ -7,6 +7,36 @@
     return mbox(x)
   }
 
+  function batch (xs) {
+    function reducer (action, data) {
+      var model = data[0]
+      var task = data[1] || []
+
+      var result = update(action, model)
+
+      var nextModel = result[0]
+      var nextTask = result[1] || []
+
+      return [nextModel, task.concat(nextTask)]
+    }
+
+    return function (model) {
+      var result = xs.reduce(reducer, [model, []])
+
+      var task = function batchOfTasks () {
+        var taskList = result[1]
+
+        if (taskList.length > 0) {
+          taskList.forEach(function (task) {
+            task()
+          })
+        }
+      }
+
+      return [result[0], task]
+    }
+  }
+
   function merge2 (origin, addition) {
     return Object.assign({}, origin, addition)
   }
@@ -58,7 +88,8 @@
 
   var WebApp = {
     start: start,
-    send: send
+    send: send,
+    batch
   }
 
   if (typeof exports === 'object') {
