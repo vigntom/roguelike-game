@@ -1,11 +1,12 @@
 $color-white: #fff;
-$color-wall: #afafaf;
-$color-player: #d06fff;
-$color-enemy: #ff0000;;
+$color-wall: #aaa;
+$color-player: #b10dc9;
+$color-enemy: #ff4136;;
 $color-weapon: #7991ec;
-$color-health: #80af13;
+$color-health: #2ecc40;
 $color-space: #fff;
-
+$color-entry: #f012be;
+$color-exit: #ff851b;
 $std-offset: 12px;
 $half-offset: $std-offset / 2;
 $fourth-offset: $std-offset / 4;
@@ -58,6 +59,14 @@ $fourth-offset: $std-offset / 4;
 
 .cell-health {
   background-color: $color-health;
+}
+
+.cell-entry {
+  background-color: $color-entry;
+}
+
+.cell-exit {
+  background-color: $color-exit;
 }
 
 .cell-space {
