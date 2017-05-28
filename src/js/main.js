@@ -14,26 +14,25 @@ import WebApp from './web-app'
     const roomSizeRate = 0.8           // of zone size
     const corridorSizeRate = 0.6       // of room size. Can be corrected
     const zoneSizeFactor = 2           // factor to zone size calculation
-    const privateArea = 10              // private area around a game object
+    const privateArea = 3              // private area around a game object
                                        // can be corrected
     const base = {
       pause: 5000,                 // pause before to start a new game
       sizeOfPreferences: 5,        // is used by zone generator
       dangeonRedundancy: 10,       // how many dungeon trees are created to choose from
-      enemyFactor: 0.75             // per room
+      minOfEnemies: 3
     }
 
     // zone size is based on the number of rooms on the floor
     //
     // game objects distribution
     //   weapon: one per floor
-    //   health: depending on enemies and their average damage
 
     const viewport = {
       width: 1024,
       height: 624,
-      rows: 30,
-      cols: 50
+      rows: 20,
+      cols: 30
     }
 
     const objects = makeEnum([
@@ -48,9 +47,12 @@ import WebApp from './web-app'
     ])
 
     const floors = {
-      'floor-1': { rows: 60, cols: 90, rooms: 9 },
-      'floor-2': { rows: 90, cols: 120, rooms: 13 },
-      'floor-3': { rows: 120, cols: 150, rooms: 18 },
+      // 'floor-1': { rows: 60, cols: 90, rooms: 9 },
+      'floor-1': { rows: 20, cols: 30, rooms: 1 },
+      // 'floor-2': { rows: 90, cols: 120, rooms: 13 },
+      'floor-2': { rows: 20, cols: 30, rooms: 2 },
+      // 'floor-3': { rows: 120, cols: 150, rooms: 18 },
+      'floor-3': { rows: 20, cols: 30, rooms: 3 },
       'floor-4': { rows: 150, cols: 180, rooms: 21 },
       'floor-5': { rows: 32, cols: 52, rooms: 3 }
     }
@@ -65,7 +67,7 @@ import WebApp from './web-app'
       'level-7': { power: 1280, breakpoint: 2560, health: 6400 },
       'level-8': { power: 2560, breakpoint: 5120, health: 12800 },
       'level-9': { power: 5120, breakpoint: 10240, health: 25600 },
-      'level-10': { power: 10240, breakpoint: 20480, health: 51200 }
+      'level-10': { power: 10240, breakpoint: 9999999, health: 51200 }
     }
 
     const weapons = {
@@ -79,11 +81,11 @@ import WebApp from './web-app'
     }
 
     const enemies = {
-      goblin: { level: 1, power: 18, health: 90, value: 10 },
-      skeleton: { level: 2, power: 16, health: 180, value: 20 },
-      gnoll: { level: 3, power: 74, health: 360, value: 40 },
-      dwarf: { level: 4, power: 144, health: 720, value: 80 },
-      boss: { level: 5, power: 1580, count: 1, health: 9600, value: 900 }
+      goblin: { level: 1, power: 15, health: 60, value: 20 },
+      skeleton: { level: 2, power: 30, health: 120, value: 40 },
+      gnoll: { level: 3, power: 60, health: 240, value: 80 },
+      dwarf: { level: 4, power: 80, health: 480, value: 160 },
+      boss: { level: 5, power: 300, count: 1, health: 9600, value: 900 }
     }
 
     const health = {
@@ -95,12 +97,13 @@ import WebApp from './web-app'
     }
 
     function addSizes (obj) {
-      const roomsPerSide = Math.sqrt(obj.rooms)
-      const zonesPerSide = Math.floor(zoneSizeFactor * roomsPerSide)
+      const rowToColRate = obj.rows / obj.cols
+      const roomsPerCol = Math.ceil(obj.rooms / (1 + rowToColRate))
+      const roomsPerRow = Math.ceil(roomsPerCol * rowToColRate)
 
       const zoneSize = {
-        x: Math.ceil(obj.cols / zonesPerSide),
-        y: Math.ceil(obj.rows / zonesPerSide)
+        x: Math.ceil(obj.cols / roomsPerCol) - 1,
+        y: Math.ceil(obj.rows / roomsPerRow) - 1
       }
 
       const roomSize = {
@@ -220,12 +223,21 @@ import WebApp from './web-app'
       return config.marks[config.objects[name]]
     }
 
+    function objectsToSave () {
+      const gameObjects = R.compose(R.keys, R.omit(['wall', 'space', 'player']))
+      return R.concat(
+        gameObjects(config.objects),
+        ['floor', 'dangeon']
+      )
+    }
+
     return {
       weapon,
       enemy,
       health,
       floor,
       level,
+      objectsToSave: objectsToSave(),
       roomSize,
       zoneSize,
       corridorSize,
@@ -259,8 +271,8 @@ import WebApp from './web-app'
     function createPoint (level, x, y) {
       const size = Stat.floor(level)
       const id = y * size.cols + x
-      const isInRowRange = y >= 0 && y < size.rows
-      const isInColRange = x >= 0 && x < size.cols
+      const isInRowRange = y >= 0 && y <= size.rows
+      const isInColRange = x >= 0 && x <= size.cols
 
       if (isInRowRange && isInColRange) {
         return { x, y, id, level }
@@ -289,37 +301,45 @@ import WebApp from './web-app'
       return result
     }
 
-    function generate (floor, dangeon) {
-      const { rows, cols } = Stat.floor(floor)
+    function generate (floor, dangeon, sample, privateAreaSize, guardL1 = 0) {
       const createPoint = create(floor)
+      const room = Room.random(sample)
+      const privateSize = privateAreaSize || Stat.floor(floor).privateAreaSize
 
-      function randomPoint () {
-        const col = Random.inRange(0, cols)
-        const row = Random.inRange(0, rows)
+      if (guardL1 > 10) {
+        throw new Error("Can't allocate free space")
+      }
+
+      function randomPoint (guardL2 = 0) {
+        const col = Random.inRange(room.r1.x, room.r2.x)
+        const row = Random.inRange(room.r1.y, room.r2.y)
 
         const point = createPoint(col, row)
-        // const isSpaceInPoint = R.compose(Cell.isSpace, Dangeon.get(point))
+
         const isAreaFree = R.compose(
           R.all(R.equals(true)),
           R.map(Cell.isSpace),
-          Dangeon.privateArea(point)
+          Dangeon.privateArea(point, privateSize)
         )
 
-        // if (isSpaceInPoint(dangeon)) {
         if (isAreaFree(dangeon)) {
           return point
         }
 
-        return randomPoint()
+        if (guardL2 > 30) {
+          const newPrivateSize = privateSize > 1 ? privateSize - 1 : 1
+          return generate(floor, dangeon, sample, newPrivateSize, guardL1 + 1)
+        }
+
+        return randomPoint(guardL2 + 1)
       }
 
       return randomPoint()
     }
 
-    function privateRange (axis, limit, point) {
-      const floor = Stat.floor(point.level)
-      const maybeMin = point[axis] - floor.privateAreaSize
-      const maybeMax = point[axis] + floor.privateAreaSize + 1
+    function privateRange (axis, limit, point, privateAreaSize) {
+      const maybeMin = point[axis] - privateAreaSize
+      const maybeMax = point[axis] + privateAreaSize + 1
 
       const min = (maybeMin < 0) ? 0 : maybeMin
       const max = (maybeMax > limit) ? limit : maybeMax
@@ -327,7 +347,7 @@ import WebApp from './web-app'
       return R.range(min, max)
     }
 
-    function privateArea (point) {
+    function privateArea (point, privateSize) {
       const level = point.level
       const floor = Stat.floor(level)
       const result = []
@@ -335,9 +355,9 @@ import WebApp from './web-app'
       R.forEach(row => {
         R.forEach(
           col => result.push(createPoint(level, col, row)),
-          privateRange('x', floor.cols, point)
+          privateRange('x', floor.cols, point, privateSize)
         )
-      }, privateRange('y', floor.rows, point))
+      }, privateRange('y', floor.rows, point, privateSize))
 
       return result
     }
@@ -403,6 +423,7 @@ import WebApp from './web-app'
 
   const DangeonTree = (function DangeonTree () {
     function split (axis, splitAt, p1, p2) {
+      // between zones there is a 1-cell wall
       const p12 = R.assoc(axis, splitAt, p2)
       const p21 = R.assoc(axis, splitAt + 1, p1)
 
@@ -413,6 +434,9 @@ import WebApp from './web-app'
     }
 
     function create (floor, { p1, p2 }) {
+      // p1 - left top point, included in the zone
+      // p2 - right bottom, excluded from the zone
+
       const { rooms } = Stat.floor(floor)
       const diff = (a, b) => (
         Math.abs(rooms - a[1]) - Math.abs(rooms - b[1])
@@ -548,10 +572,19 @@ import WebApp from './web-app'
       return { left: leftRoom, right: rightRoom }
     }
 
+    function random (node) {
+      if (node.r1 !== undefined) { return node }
+
+      return random(
+        Random.oneFrom([node.left, node.right])
+      )
+    }
+
     return {
       create,
       neighbors,
-      relativePosition
+      relativePosition,
+      random
     }
   }())
 
@@ -747,10 +780,10 @@ import WebApp from './web-app'
       return withCorridors(withRooms)
     }
 
-    function privateArea (point, dangeon) {
+    function privateArea (point, privateAreaSize, dangeon) {
       return R.map(
         get(R.__, dangeon),
-        Point.privateArea(point)
+        Point.privateArea(point, privateAreaSize)
       )
     }
 
@@ -776,13 +809,13 @@ import WebApp from './web-app'
     }
 
     function createAtCenter (floor) {
-      const { rows, cols } = Stat.floor(floor)
-      const vRows = config.viewport.rows
+      const { rows, cols } = Stat.floor(floor) // { 30, 50 }
       const vCols = config.viewport.cols
-      const halfCols = Math.round(cols / 2)
-      const halfRows = Math.round(rows / 2)
-      const halfVCols = Math.round(vCols / 2)
-      const halfVRows = Math.round(vRows / 2)
+      const vRows = config.viewport.rows
+      const halfCols = Math.floor(cols / 2)
+      const halfRows = Math.floor(rows / 2)
+      const halfVCols = Math.floor(vCols / 2)
+      const halfVRows = Math.floor(vRows / 2)
 
       const p0 = Point.create(floor)(
         halfCols - halfVCols,
@@ -812,6 +845,7 @@ import WebApp from './web-app'
       const maybeY1 = place.y + (vRows - halfVRows)
 
       const [x0, x1] = align(maybeX0, maybeX1, 0, cols)
+
       const [y0, y1] = align(maybeY0, maybeY1, 0, rows)
 
       return { p0: pointOnFloor(x0, y0), p1: pointOnFloor(x1, y1) }
@@ -822,8 +856,8 @@ import WebApp from './web-app'
         return [boundA, b - a]
       }
 
-      if (b >= boundB) {
-        return [a - (b - boundB) - 1, boundB - 1]
+      if (b > boundB) {
+        return [a - (b - boundB), boundB]
       }
 
       return [a, b]
@@ -855,19 +889,19 @@ import WebApp from './web-app'
         return () => setTimeout(() => address(keeper), delay)
       }
 
-      function generateDangeon (level, p1, p2, dangeon, guard = 0) {
+      function generateDangeon (level, p1, p2, area, guard = 0) {
         const sample = DangeonTree.create(level, { p1, p2 })
-        const result = Dangeon.fromSample(level, sample, dangeon)
+        const dangeon = Dangeon.fromSample(level, sample, area)
 
         if (dangeon.error) {
           if (guard > 9) {
             throw new Error('Configuration Error! Wrong room / cooridor settings.')
           }
 
-          return generateDangeon(level, p1, p2, dangeon, guard + 1)
+          return generateDangeon(level, p1, p2, area, guard + 1)
         }
 
-        return result
+        return { dangeon, sample }
       }
 
       function findItem (list, level) {
@@ -877,25 +911,32 @@ import WebApp from './web-app'
         )
       }
 
-      const placePlayer = R.curry((level, player, entry, dangeon) => {
-        if (R.keys(entry).length > 0) {
-          const entryPoint = R.head(R.values(entry)).place
-          const point = Point.moveRight(entryPoint)
-          return { player: R.assoc('place', point, player) }
+      const placePlayer = R.curry((level, player, entry, { dangeon, sample }) => {
+        function getPlayerPoint (entry) {
+          if (R.keys(entry).length > 0) {
+            const entryPoint = R.head(R.values(entry)).place
+            return Point.moveRight(entryPoint)
+          }
+
+          return Point.generate(level, dangeon, sample)
         }
 
-        const point = Point.generate(level, dangeon)
+        const point = getPlayerPoint(entry)
 
-        return { player: R.assoc('place', point, player) }
+        return R.assoc('place', point, player)
       })
 
       const genStep = R.curry(
-        function genStep (base, level, mark, [result, dangeon]) {
-          const place = Point.generate(level, dangeon)
+        function genStep (base, level, mark, [result, { dangeon, sample }]) {
+          const place = Point.generate(level, dangeon, sample)
+          const fullDangeon = {
+            sample,
+            dangeon: Dangeon.update(place, mark, dangeon)
+          }
 
           return [
             R.assoc(place.id, R.merge(base, { place }), result),
-            Dangeon.update(place, mark, dangeon)
+            fullDangeon
           ]
         }
       )
@@ -906,13 +947,8 @@ import WebApp from './web-app'
         const mark = Stat.mark('enemy')
         const numOfEnemies = Stat.enemy(type).count || count
         const base = R.merge(Stat.enemy(type), { type, weapon })
-        const factor = (numOfEnemies === 1) ? 1 : config.enemyFactor
-
-        const cond = () => Math.random() <= factor
 
         const [result, next] = R.reduce(acc => {
-          if (!cond()) { return acc }
-
           return genStep(base, level, mark, acc)
         }, [{}, dangeon], R.range(0, numOfEnemies))
 
@@ -934,36 +970,43 @@ import WebApp from './web-app'
         { health: result }, next]
       })
 
-      const generateWeapon = R.curry((level, dangeon) => {
+      const generateWeapon = R.curry((level, { dangeon, sample }) => {
         const result = {}
-        const place = Point.generate(level, dangeon)
+        const place = Point.generate(level, dangeon, sample)
         const type = findItem(config.weapons, level)
 
         result[place.id] = { type, place }
 
-        return [
-          { weapon: result },
-          Dangeon.update(place, Stat.mark('weapon'), dangeon)
-        ]
+        const fullDangeon = {
+          dangeon: Dangeon.update(place, Stat.mark('weapon'), dangeon),
+          sample
+        }
+
+        return [ { weapon: result }, fullDangeon ]
       })
 
-      const placeEntrance = R.curry((entrance, cond, level, dangeon) => {
+      const placeEntrance = R.curry((entrance, cond, level, fullDangeonIn) => {
+        const result = {}
         const mark = Stat.mark(entrance)
+        const { dangeon, sample } = fullDangeonIn
 
-        if (!cond) { return [{}, dangeon] }
+        if (!cond) { return [{ [entrance]: {} }, fullDangeonIn] }
 
         if (mark === undefined) {
           throw new Error(`Unknown entrance: ${entrance}`)
         }
 
-        const place = Point.generate(level, dangeon)
-        const result = {
-          [place.id]: { place }
+        const place = Point.generate(level, dangeon, sample)
+        result[place.id] = { place }
+
+        const fullDangeon = {
+          sample,
+          dangeon: Dangeon.update(place, config.marks[entrance], dangeon)
         }
 
         return [
           { [entrance]: result },
-          Dangeon.update(place, config.marks[entrance], dangeon)
+          fullDangeon
         ]
       })
 
@@ -975,12 +1018,19 @@ import WebApp from './web-app'
           const p2 = { x: cols, y: rows }
 
           const send = R.compose(address, keep, R.merge(model))
-          const dangeon = generateDangeon(level, p1, p2, model.dangeon)
+          const fullDangeon = generateDangeon(level, p1, p2, model.dangeon)
+          const dangeon = fullDangeon.dangeon
+          const rooms = Stat.floor(level).rooms
+          const numOfEnemies = rooms > config.minOfEnemies
+            ? rooms
+            : config.minOfEnemies
+
+          const numOfHealth = Math.ceil(1.2 * numOfEnemies)
 
           const listOfGenerators = [
             generateWeapon(level),
-            generateEnemies(level, Stat.floor(level).rooms),
-            generateHealth(level, Stat.floor(level).rooms),
+            generateEnemies(level, numOfEnemies),
+            generateHealth(level, numOfHealth),
             placeEntrance('entry', level > 1, level),
             placeEntrance('exit', level < 5, level)
           ]
@@ -988,14 +1038,19 @@ import WebApp from './web-app'
           const [items, filledDangeon] = R.reduce(([acc, data], generator) => {
             const result = generator(data)
             return [R.merge(acc, result[0]), result[1]]
-          }, [{}, dangeon], listOfGenerators)
+          }, [{}, fullDangeon], listOfGenerators)
 
-          const gameObjects = R.merge(
-            items,
-            placePlayer(level, model.player, items.entry, filledDangeon)
+          const player = placePlayer(
+            level,
+            model.player,
+            items.entry,
+            filledDangeon
           )
 
-          return send(R.merge({ dangeon }, gameObjects))
+          const currentLevel = R.merge({ dangeon, floor: level }, items)
+          const archive = R.append(currentLevel, model.archive)
+
+          return send(R.merge(currentLevel, { player, archive }))
         }
       }
 
@@ -1132,15 +1187,42 @@ import WebApp from './web-app'
         ]
       }
 
+      function restoreNextLevel (floor, archive, model) {
+        const level = R.merge(model, archive[floor - 1])
+        const entryPoint = R.head(R.values(level.entry)).place
+        const point = Point.moveRight(entryPoint)
+        const player = R.assoc('place', point, model.player)
+
+        return [R.merge(level, { archive, player })]
+      }
+
       function nextLevel (model) {
-        const currentLevel = R.omit(['player', 'archive', 'gameOver'], model)
-        const archive = R.append(currentLevel, model.archive)
-        return createDangeon(model.floor + 1, archive, model.player)
+        const current = R.pick(Stat.objectsToSave, model)
+        const archive = R.update(model.floor - 1, current, model.archive)
+
+        if (model.archive.length < model.floor + 1) {
+          return createDangeon(model.floor + 1, archive, model.player)
+        }
+
+        return restoreNextLevel(model.floor + 1, archive, model)
+      }
+
+      function previousLevel (model) {
+        const floor = model.floor - 1
+        const level = R.merge(model, model.archive[floor - 1])
+        const current = R.pick(Stat.objectsToSave, model)
+        const archive = R.update(floor, current, model.archive)
+
+        const exitPoint = R.head(R.values(level.exit)).place
+        const point = Point.moveRight(exitPoint)
+        const player = R.assoc('place', point, model.player)
+
+        return [R.merge(level, { archive, player })]
       }
 
       function move (step) {
         return function (model) {
-          const { player, enemy, health, weapon, exit } = model
+          const { player, enemy, health, weapon, exit, entry } = model
           const moveTo = step(player.place)
           const id = moveTo.id
           const isPlaceSpace = R.compose(Cell.isSpace, Dangeon.get(moveTo))
@@ -1151,6 +1233,7 @@ import WebApp from './web-app'
           if (weapon && weapon[id]) { return takeWeapon(moveTo, model) }
           if (health && health[id]) { return takeHealth(moveTo, model) }
           if (exit && exit[id]) { return nextLevel(model) }
+          if (entry && entry[id]) { return previousLevel(model) }
 
           if (isPlaceSpace(model.dangeon)) {
             return [makeStep(moveTo, model)]
@@ -1206,7 +1289,6 @@ import WebApp from './web-app'
       const archive = archivedStates || []
 
       const player = createPlayer(savedPlayer)
-      console.log(player)
 
       const model = {
         player,
