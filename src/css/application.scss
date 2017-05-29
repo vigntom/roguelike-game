@@ -11,8 +11,6 @@ $std-offset: 12px;
 $half-offset: $std-offset / 2;
 $fourth-offset: $std-offset / 4;
 
-// $cell-size: 20px;
-
 .rounded {
   border-radius: $half-offset;
 }
@@ -24,20 +22,12 @@ $fourth-offset: $std-offset / 4;
 .dangeon {
   @include stack-effect(2);
   display: inline-block;
-  // width: 1024px;
-  // height: 624px;
   padding: $std-offset;
   background: black(.7);
 }
 
-.dangeon-row {
-  // height: $cell-size;
-}
-
 .dangeon-cell {
   display: inline-block;
-  // width: $cell-size;
-  // height: $cell-size;
   background-color: $color-white;
 }
 
@@ -71,6 +61,11 @@ $fourth-offset: $std-offset / 4;
 
 .cell-space {
   background-color: $color-space;
+}
+
+.cell-hidden {
+  height: inherit;
+  background-color: black(.8);
 }
 
 .info-item {

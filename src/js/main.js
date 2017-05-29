@@ -13,14 +13,14 @@ import WebApp from './web-app'
   const config = (function config () {
     const roomSizeRate = 0.8           // of zone size
     const corridorSizeRate = 0.6       // of room size. Can be corrected
-    const zoneSizeFactor = 2           // factor to zone size calculation
     const privateArea = 3              // private area around a game object
                                        // can be corrected
     const base = {
       pause: 5000,                 // pause before to start a new game
       sizeOfPreferences: 5,        // is used by zone generator
       dangeonRedundancy: 10,       // how many dungeon trees are created to choose from
-      minOfEnemies: 3
+      minOfEnemies: 3,
+      visibility: 8
     }
 
     // zone size is based on the number of rooms on the floor
@@ -30,43 +30,41 @@ import WebApp from './web-app'
 
     const viewport = {
       width: 1024,
-      height: 624,
-      rows: 20,
-      cols: 30
+      height: 628,
+      rows: 40,
+      cols: 64
     }
 
-    const objects = makeEnum([
-      'wall',
-      'player',
-      'enemy',
+    const hero = makeEnum(['player'])
+    const gameBricks = makeEnum(['wall', 'space'])
+    const gameObjects = makeEnum([
+      'entry',
+      'exit',
       'weapon',
       'health',
-      'space',
-      'entry',
-      'exit'
-    ])
+      'enemy']
+    )
+
+    const objects = R.mergeAll([gameBricks, gameObjects, hero])
 
     const floors = {
-      // 'floor-1': { rows: 60, cols: 90, rooms: 9 },
-      'floor-1': { rows: 20, cols: 30, rooms: 1 },
-      // 'floor-2': { rows: 90, cols: 120, rooms: 13 },
-      'floor-2': { rows: 20, cols: 30, rooms: 2 },
-      // 'floor-3': { rows: 120, cols: 150, rooms: 18 },
-      'floor-3': { rows: 20, cols: 30, rooms: 3 },
+      'floor-1': { rows: 60, cols: 90, rooms: 9 },
+      'floor-2': { rows: 90, cols: 120, rooms: 13 },
+      'floor-3': { rows: 120, cols: 150, rooms: 18 },
       'floor-4': { rows: 150, cols: 180, rooms: 21 },
-      'floor-5': { rows: 32, cols: 52, rooms: 3 }
+      'floor-5': { rows: 40, cols: 64, rooms: 3 }
     }
 
     const levels = {
-      'level-1': { power: 20, breakpoint: 40, health: 100 },
-      'level-2': { power: 40, breakpoint: 80, health: 200 },
-      'level-3': { power: 80, breakpoint: 160, health: 400 },
-      'level-4': { power: 160, breakpoint: 320, health: 800 },
-      'level-5': { power: 320, breakpoint: 640, health: 1600 },
-      'level-6': { power: 640, breakpoint: 1280, health: 3200 },
-      'level-7': { power: 1280, breakpoint: 2560, health: 6400 },
-      'level-8': { power: 2560, breakpoint: 5120, health: 12800 },
-      'level-9': { power: 5120, breakpoint: 10240, health: 25600 },
+      'level-1': { power: 20, breakpoint: 80, health: 100 },
+      'level-2': { power: 40, breakpoint: 160, health: 200 },
+      'level-3': { power: 80, breakpoint: 320, health: 400 },
+      'level-4': { power: 160, breakpoint: 640, health: 800 },
+      'level-5': { power: 320, breakpoint: 1280, health: 1600 },
+      'level-6': { power: 640, breakpoint: 2560, health: 3200 },
+      'level-7': { power: 1280, breakpoint: 5120, health: 6400 },
+      'level-8': { power: 2560, breakpoint: 10240, health: 12800 },
+      'level-9': { power: 5120, breakpoint: 20480, health: 25600 },
       'level-10': { power: 10240, breakpoint: 9999999, health: 51200 }
     }
 
@@ -81,10 +79,10 @@ import WebApp from './web-app'
     }
 
     const enemies = {
-      goblin: { level: 1, power: 15, health: 60, value: 20 },
-      skeleton: { level: 2, power: 30, health: 120, value: 40 },
-      gnoll: { level: 3, power: 60, health: 240, value: 80 },
-      dwarf: { level: 4, power: 80, health: 480, value: 160 },
+      goblin: { level: 1, power: 15, health: 80, value: 20 },
+      skeleton: { level: 2, power: 30, health: 160, value: 40 },
+      gnoll: { level: 3, power: 60, health: 320, value: 80 },
+      dwarf: { level: 4, power: 120, health: 640, value: 160 },
       boss: { level: 5, power: 300, count: 1, health: 9600, value: 900 }
     }
 
@@ -152,6 +150,9 @@ import WebApp from './web-app'
     return R.merge(base, {
       viewport,
       objects,
+      gameBricks,
+      gameObjects,
+      hero,
       marks: makeMarks(objects),
       floors: updateFloors(floors),
       levels,
@@ -224,11 +225,14 @@ import WebApp from './web-app'
     }
 
     function objectsToSave () {
-      const gameObjects = R.compose(R.keys, R.omit(['wall', 'space', 'player']))
       return R.concat(
-        gameObjects(config.objects),
+        R.keys(config.gameObjects),
         ['floor', 'dangeon']
       )
+    }
+
+    function isVisible (x) {
+      return x < config.visibility
     }
 
     return {
@@ -243,7 +247,8 @@ import WebApp from './web-app'
       corridorSize,
       cellHeight: cellHeight(),
       cellWidth: cellWidth(),
-      mark
+      mark,
+      isVisible
     }
   }())
 
@@ -281,8 +286,8 @@ import WebApp from './web-app'
       return { error: true }
     }
 
-    function create (level) {
-      return (x, y) => {
+    const create = R.curry(
+      function create (level, x, y) {
         const result = createPoint(level, x, y)
 
         if (result.error) {
@@ -290,8 +295,7 @@ import WebApp from './web-app'
         }
 
         return result
-      }
-    }
+      })
 
     function update (x, y, p) {
       const result = createPoint(p.level, x, y)
@@ -362,6 +366,15 @@ import WebApp from './web-app'
       return result
     }
 
+    function distance (a, b) {
+      if (a === undefined) { return 0 }
+      if (b === undefined) { return 0 }
+
+      return Math.sqrt(
+        Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2)
+      )
+    }
+
     return {
       create,
       moveUp,
@@ -369,13 +382,15 @@ import WebApp from './web-app'
       moveLeft,
       moveRight,
       generate,
-      privateArea
+      privateArea,
+      distance
     }
   }())
 
   const Cell = (function Cell () {
-    const isWall = cell => cell === config.objects.wall
-    const isSpace = cell => cell === config.objects.space
+    const { wall, space } = config.gameBricks
+    const isWall = cell => cell === wall
+    const isSpace = cell => cell === space
 
     function create (value) {
       const valueExists = R.compose(R.any(x => x === value), R.keys)
@@ -863,8 +878,39 @@ import WebApp from './web-app'
       return [a, b]
     }
 
+    function moveBy (fn, { p0, p1 }) {
+      return {
+        p0: fn(p0),
+        p1: fn(p1)
+      }
+    }
+
+    function update (place, viewport) {
+      const { rows, cols } = Stat.floor(place.level)
+      const { visibility } = config
+
+      if (place.x >= visibility && place.x - viewport.p0.x < visibility) {
+        return moveBy(Point.moveLeft, viewport)
+      }
+
+      if (place.x < cols - visibility && viewport.p1.x - place.x < visibility) {
+        return moveBy(Point.moveRight, viewport)
+      }
+
+      if (place.y >= visibility && place.y - viewport.p0.y < visibility) {
+        return moveBy(Point.moveUp, viewport)
+      }
+
+      if (place.y < rows - visibility && viewport.p1.y - place.y < visibility) {
+        return moveBy(Point.moveDown, viewport)
+      }
+
+      return viewport
+    }
+
     return {
-      create
+      create,
+      update
     }
   }())
 
@@ -1047,10 +1093,11 @@ import WebApp from './web-app'
             filledDangeon
           )
 
+          const viewport = Viewport.create(level, player.place)
           const currentLevel = R.merge({ dangeon, floor: level }, items)
           const archive = R.append(currentLevel, model.archive)
 
-          return send(R.merge(currentLevel, { player, archive }))
+          return send(R.merge(currentLevel, { player, archive, viewport }))
         }
       }
 
@@ -1077,8 +1124,15 @@ import WebApp from './web-app'
       keyMoveMap.set('a', move(Point.moveLeft))
       keyMoveMap.set('d', move(Point.moveRight))
 
+      const updateViewport = (place, viewport) => (
+        { viewport: Viewport.update(place, viewport) }
+      )
+
       const makeStep = (place, model) => (
-        R.assocPath(['player', 'place'], place, model)
+        R.merge(
+          R.assocPath(['player', 'place'], place, model),
+          updateViewport(place, model.viewport)
+        )
       )
 
       const newGame = () => {
@@ -1158,13 +1212,13 @@ import WebApp from './web-app'
       }
 
       function takeWeapon (place, model) {
-        const { player, weapon } = model
+        const { player } = model
         const id = place.id
         const powerOf = x => Stat.weapon(x).power
 
-        if (powerOf(player.weapon) < powerOf(weapon[id].type)) {
+        if (powerOf(player.weapon) < powerOf(model.weapon[id].type)) {
           const take = R.compose(
-            R.assocPath(['player', 'weapon'], weapon[id].type),
+            R.assocPath(['player', 'weapon'], model.weapon[id].type),
             R.dissocPath(['weapon', id])
           )
 
@@ -1222,21 +1276,21 @@ import WebApp from './web-app'
 
       function move (step) {
         return function (model) {
-          const { player, enemy, health, weapon, exit, entry } = model
+          const { player, enemy, health, weapon, exit, entry, viewport } = model
           const moveTo = step(player.place)
           const id = moveTo.id
           const isPlaceSpace = R.compose(Cell.isSpace, Dangeon.get(moveTo))
 
           if (model.gameOver) { return [{}] }
 
-          if (enemy && enemy[id]) { return attackEnemy(moveTo, model) }
-          if (weapon && weapon[id]) { return takeWeapon(moveTo, model) }
-          if (health && health[id]) { return takeHealth(moveTo, model) }
-          if (exit && exit[id]) { return nextLevel(model) }
-          if (entry && entry[id]) { return previousLevel(model) }
+          if (enemy[id]) { return attackEnemy(moveTo, model) }
+          if (weapon[id]) { return takeWeapon(moveTo, model) }
+          if (health[id]) { return takeHealth(moveTo, model) }
+          if (exit[id]) { return nextLevel(model) }
+          if (entry[id]) { return previousLevel(model) }
 
           if (isPlaceSpace(model.dangeon)) {
-            return [makeStep(moveTo, model)]
+            return [makeStep(moveTo, { player, viewport })]
           }
 
           return [{}]
@@ -1300,7 +1354,9 @@ import WebApp from './web-app'
         floor,
         dangeon: Dangeon.create(Stat.floor(floor)),
         archive,
-        gameOver: false
+        viewport: Viewport.create(floor),
+        gameOver: false,
+        lightOn: false
       }
 
       return [
@@ -1339,7 +1395,7 @@ import WebApp from './web-app'
       }
 
       const app = (function app () {
-        function App ({ dangeon, viewport, player, exit, floor, gameOver }) {
+        function App ({ dangeon, viewport, player, exit, floor, lightOn, gameOver }) {
           const { health, power, level, experience } = player
           const weapon = Stat.weapon(player.weapon).power
           const cellHeight = Stat.cellHeight
@@ -1393,16 +1449,25 @@ import WebApp from './web-app'
             h('div', { className: 'dangeon rounded', style: dangeonStyle },
               R.map(rowId => (
                 h('div', { className: 'dangeon-row', key: rowId, style: rowStyle },
-                  R.map(cellId => (
-                    h('div', {
+                  R.map(cellId => {
+                    const point = Point.create(floor, cellId, rowId)
+                    const mark = config.marks[Dangeon.get(point, dangeon)]
+
+                    const isVisible = Stat.isVisible(
+                      Point.distance(player.place, point)
+                    )
+
+                    const showAs = (lightOn || isVisible) ? '' : 'cell-hidden'
+
+                    return h('div', {
                       className: [
                         'dangeon-cell',
-                        config.marks[dangeon[rowId][cellId]]
+                        mark
                       ].join(' '),
                       key: cellId,
                       style: cellStyle
-                    })
-                  ), R.range(viewport.p0.x, viewport.p1.x))
+                    }, h('div', { className: showAs }))
+                  }, R.range(viewport.p0.x, viewport.p1.x))
                 )
               ), R.range(viewport.p0.y, viewport.p1.y))
             )
@@ -1413,14 +1478,9 @@ import WebApp from './web-app'
       }())
 
       function reform (model) {
-        const { dangeon, floor, player } = model
+        const { dangeon } = model
         const fill = fillWithObjects(model)
-        const viewport = Viewport.create(
-          floor,
-          player.place
-        )
-
-        return R.merge(model, { dangeon: fill(dangeon), viewport })
+        return R.merge(model, { dangeon: fill(dangeon) })
       }
 
       return function render (model) {
