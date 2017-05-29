@@ -30,9 +30,9 @@ import WebApp from './web-app'
 
     const viewport = {
       width: 1024,
-      height: 628,
-      rows: 40,
-      cols: 64
+      height: 624,
+      rows: 30,
+      cols: 50
     }
 
     const hero = makeEnum(['player'])
@@ -44,6 +44,8 @@ import WebApp from './web-app'
       'health',
       'enemy']
     )
+
+    const gameStates = makeEnum(['over', 'continues'])
 
     const objects = R.mergeAll([gameBricks, gameObjects, hero])
 
@@ -152,6 +154,7 @@ import WebApp from './web-app'
       objects,
       gameBricks,
       gameObjects,
+      gameStates,
       hero,
       marks: makeMarks(objects),
       floors: updateFloors(floors),
@@ -235,6 +238,14 @@ import WebApp from './web-app'
       return x < config.visibility
     }
 
+    function isGameOver (test) {
+      return test === config.gameStates.over
+    }
+
+    function isContinues (test) {
+      return test === config.gameStates.continues
+    }
+
     return {
       weapon,
       enemy,
@@ -248,7 +259,9 @@ import WebApp from './web-app'
       cellHeight: cellHeight(),
       cellWidth: cellWidth(),
       mark,
-      isVisible
+      isVisible,
+      isGameOver,
+      isContinues
     }
   }())
 
@@ -370,8 +383,10 @@ import WebApp from './web-app'
       if (a === undefined) { return 0 }
       if (b === undefined) { return 0 }
 
-      return Math.sqrt(
-        Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2)
+      return Math.floor(
+        Math.sqrt(
+          Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2)
+        )
       )
     }
 
@@ -923,11 +938,9 @@ import WebApp from './web-app'
       }
 
       function generateDamage ({ player, enemy }, keeper) {
-        const enemyDamage = Weapon.randomDamage(enemy)
-
         return () => address(keeper({
           player: Weapon.randomDamage(player),
-          enemy: enemyDamage
+          enemy: Weapon.randomDamage(enemy)
         }))
       }
 
@@ -1135,6 +1148,12 @@ import WebApp from './web-app'
         )
       )
 
+      const prepareTheGame = () => {
+        return [
+          { state: config.gameStates.continues },
+          tasks.pause(300, newGame)]
+      }
+
       const newGame = () => {
         return createDangeon()
       }
@@ -1146,8 +1165,8 @@ import WebApp from './web-app'
 
         if (player.health <= 0) {
           return [
-            R.assoc('gameOver', true, model),
-            tasks.pause(config.pause, newGame)
+            R.assoc('state', config.gameStates.over, model),
+            tasks.pause(config.pause, prepareTheGame)
           ]
         }
 
@@ -1276,12 +1295,12 @@ import WebApp from './web-app'
 
       function move (step) {
         return function (model) {
-          const { player, enemy, health, weapon, exit, entry, viewport } = model
+          const { player, enemy, health, weapon, exit, entry, viewport, state } = model
           const moveTo = step(player.place)
           const id = moveTo.id
           const isPlaceSpace = R.compose(Cell.isSpace, Dangeon.get(moveTo))
 
-          if (model.gameOver) { return [{}] }
+          if (Stat.isGameOver(state)) { return [{}] }
 
           if (enemy[id]) { return attackEnemy(moveTo, model) }
           if (weapon[id]) { return takeWeapon(moveTo, model) }
@@ -1355,7 +1374,7 @@ import WebApp from './web-app'
         dangeon: Dangeon.create(Stat.floor(floor)),
         archive,
         viewport: Viewport.create(floor),
-        gameOver: false,
+        state: config.gameStates.continues,
         lightOn: false
       }
 
@@ -1394,83 +1413,134 @@ import WebApp from './web-app'
         )
       }
 
+      function infoBoardVew (model) {
+        const { floor, player } = model
+        const { health, power, level, experience } = player
+        const weapon = Stat.weapon(player.weapon).power
+        const { breakpoint } = Stat.level(level)
+
+        return h('div', { className: 'info' },
+          h('div', { className: 'item' },
+            h('h2', {}, 'Health: '),
+            h('p', {}, health)
+          ),
+          h('div', { className: 'item' },
+            h('h2', {}, 'Weapon: '),
+            h('p', {}, player.weapon)
+          ),
+          h('div', { className: 'item' },
+            h('h2', {}, 'Power: '),
+            h('p', {}, (power + weapon).toString())
+          ),
+          h('div', { className: 'item' },
+            h('h2', {}, 'Level: '),
+            h('p', {}, level.toString())
+          ),
+          h('div', { className: 'item' },
+            h('h2', {}, 'Experience: '),
+            h('p', {}, experience.toString() + ' / ' + breakpoint.toString())
+          ),
+          h('div', { className: 'item' },
+            h('h2', {}, 'Floor: '),
+            h('p', {}, floor.toString())
+          )
+        )
+      }
+
+      function gameStateView (state) {
+        const currentGameState = Stat.isGameOver(state)
+          ? 'game-over'
+          : 'game-ok'
+
+        return h('div', { className: 'game-state' + ' ' + currentGameState },
+          h('h2', {}, 'Game over!')
+        )
+      }
+
+      function dangeonView (model) {
+        const { dangeon, viewport, floor, player, lightOn } = model
+        const cellHeight = Stat.cellHeight
+        const cellWidth = Stat.cellWidth
+
+        const rowStyle = {
+          height: cellHeight
+        }
+
+        const cellStyle = {
+          height: cellHeight,
+          width: cellWidth
+        }
+
+        return R.map(rowId => (
+          h('div', { className: 'dangeon-row', key: rowId, style: rowStyle },
+            R.map(cellId => {
+              const point = Point.create(floor, cellId, rowId)
+              const mark = config.marks[Dangeon.get(point, dangeon)]
+
+              const isVisible = Stat.isVisible(
+                Point.distance(player.place, point)
+              )
+
+              const showAs = (lightOn || isVisible) ? '' : 'cell-hidden'
+
+              return h('div', {
+                className: [
+                  'dangeon-cell',
+                  mark
+                ].join(' '),
+                key: cellId,
+                style: cellStyle
+              }, h('div', { className: showAs }))
+            }, R.range(viewport.p0.x, viewport.p1.x))
+          )
+        ), R.range(viewport.p0.y, viewport.p1.y))
+      }
+
+      function hintBoardView () {
+        return h('div', { className: 'hint' },
+          h('div', { className: 'item' },
+            h('h2', { className: 'hint-header' }, 'player'),
+            h('div', { className: 'cell-player hint-cell' })
+          ),
+          h('div', { className: 'item' },
+            h('h2', { className: 'hint-header' }, 'enemy'),
+            h('div', { className: 'cell-enemy hint-cell' })
+          ),
+          h('div', { className: 'item' },
+            h('h2', { className: 'hint-header' }, 'health'),
+            h('div', { className: 'cell-health hint-cell' })
+          ),
+          h('div', { className: 'item' },
+            h('h2', { className: 'hint-header' }, 'weapon'),
+            h('div', { className: 'cell-weapon hint-cell' })
+          ),
+          h('div', { className: 'item' },
+            h('h2', { className: 'hint-header' }, 'entry'),
+            h('div', { className: 'cell-entry hint-cell' })
+          ),
+          h('div', { className: 'item' },
+            h('h2', { className: 'hint-header' }, 'exit'),
+            h('div', { className: 'cell-exit hint-cell' })
+          )
+        )
+      }
+
       const app = (function app () {
-        function App ({ dangeon, viewport, player, exit, floor, lightOn, gameOver }) {
-          const { health, power, level, experience } = player
-          const weapon = Stat.weapon(player.weapon).power
-          const cellHeight = Stat.cellHeight
-          const cellWidth = Stat.cellWidth
+        function App (model) {
+          const { state } = model
+
           const dangeonStyle = {
             width: config.viewport.width,
             height: config.viewport.height
           }
 
-          const rowStyle = {
-            height: cellHeight
-          }
-
-          const cellStyle = {
-            height: cellHeight,
-            width: cellWidth
-          }
-
-          return h('div', {
-            className: 'game'
-          },
-            h('div', { className: 'game-state' + ' ' + (gameOver ? 'game-over' : 'game-ok') },
-              h('h2', {}, 'Game over!')
-            ),
-            h('div', { className: 'info' },
-              h('div', { className: 'info-item' },
-                h('h2', {}, 'Health: '),
-                h('p', {}, health)
-              ),
-              h('div', { className: 'info-item' },
-                h('h2', {}, 'Weapon: '),
-                h('p', {}, player.weapon)
-              ),
-              h('div', { className: 'info-item' },
-                h('h2', {}, 'Power: '),
-                h('p', {}, (power + weapon).toString())
-              ),
-              h('div', { className: 'info-item' },
-                h('h2', {}, 'Level: '),
-                h('p', {}, level.toString())
-              ),
-              h('div', { className: 'info-item' },
-                h('h2', {}, 'Experience: '),
-                h('p', {}, experience.toString())
-              ),
-              h('div', { className: 'info-item' },
-                h('h2', {}, 'Floor: '),
-                h('p', {}, floor.toString())
-              )
-            ),
+          return h('div', { className: 'game' },
+            infoBoardVew(model),
             h('div', { className: 'dangeon rounded', style: dangeonStyle },
-              R.map(rowId => (
-                h('div', { className: 'dangeon-row', key: rowId, style: rowStyle },
-                  R.map(cellId => {
-                    const point = Point.create(floor, cellId, rowId)
-                    const mark = config.marks[Dangeon.get(point, dangeon)]
-
-                    const isVisible = Stat.isVisible(
-                      Point.distance(player.place, point)
-                    )
-
-                    const showAs = (lightOn || isVisible) ? '' : 'cell-hidden'
-
-                    return h('div', {
-                      className: [
-                        'dangeon-cell',
-                        mark
-                      ].join(' '),
-                      key: cellId,
-                      style: cellStyle
-                    }, h('div', { className: showAs }))
-                  }, R.range(viewport.p0.x, viewport.p1.x))
-                )
-              ), R.range(viewport.p0.y, viewport.p1.y))
-            )
+              gameStateView(state),
+              dangeonView(model)
+            ),
+            hintBoardView()
           )
         }
 

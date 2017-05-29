@@ -21,6 +21,7 @@ $fourth-offset: $std-offset / 4;
 
 .dangeon {
   @include stack-effect(2);
+  //position: relative;
   display: inline-block;
   padding: $std-offset;
   background: black(.7);
@@ -68,9 +69,9 @@ $fourth-offset: $std-offset / 4;
   background-color: black(.8);
 }
 
-.info-item {
+.item {
   display: inline-block;
-  margin: $half-offset;
+  margin: $std-offset;
 
   h2 {
     display: inline-block;
@@ -83,15 +84,19 @@ $fourth-offset: $std-offset / 4;
     margin: $half-offset;
     font-size: 12px;
   }
+
+  div {
+    display: inline-block;
+    margin: $half-offset;
+  }
 }
 
 .game-state {
-  position: relative;
-  top: 10em;
-  margin: 0 auto;
+  position: absolute;
+  top: 25%;
   border-radius: 5px;
-  background: red;
-  color: gray;
+  background: $color-enemy;
+  color: $color-white;
 
   h2 {
     display: inline-block;
@@ -100,14 +105,28 @@ $fourth-offset: $std-offset / 4;
 }
 
 .game-ok {
-  width: 0;
-  transition: opacity .75s ease-in, width .5s ease-in, height .3s ease-in;
+  right: 50%;
+  left: 50%;
+  height: 0;
+  transition: opacity .3s ease-in, height .3s ease-in;
   opacity: 0;
 }
 
 .game-over {
-  width: 20em;
-  height: 5em;
-  transition: opacity .75s ease-out, width .5s ease-out, height .3s ease-out;
+  right: 25%;
+  left: 25%;
+  height: 15em;
+  transition: opacity .3s ease-out, height .3s ease-out;
   opacity: 1;
+}
+
+
+.hint-header {
+  height: 1.5em;
+}
+
+.hint-cell {
+  width: 1.5em;
+  height: 1.5em;
+  vertical-align: bottom;
 }
