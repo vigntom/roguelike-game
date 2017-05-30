@@ -15,14 +15,25 @@ $fourth-offset: $std-offset / 4;
   border-radius: $half-offset;
 }
 
-.game {
-  text-align: center;
+.m-auto {
+  margin: 0 auto;
+}
+
+.flex-grid {
+  display: flex;
+  justify-content: space-around;
+}
+
+.flex-column {
+  flex-direction: column;
+}
+
+.info {
+  margin: 1em auto;
+  background: black(.1);
 }
 
 .dangeon {
-  @include stack-effect(2);
-  //position: relative;
-  display: inline-block;
   padding: $std-offset;
   background: black(.7);
 }
@@ -66,7 +77,6 @@ $fourth-offset: $std-offset / 4;
 
 .cell-hidden {
   height: inherit;
-  background-color: black(.8);
 }
 
 .item {
@@ -129,4 +139,10 @@ $fourth-offset: $std-offset / 4;
   width: 1.5em;
   height: 1.5em;
   vertical-align: bottom;
+}
+
+.fog-slider {
+  input {
+    transform: translateY(100px) rotate(90deg);
+  }
 }

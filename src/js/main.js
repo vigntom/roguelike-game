@@ -13,14 +13,14 @@ import WebApp from './web-app'
   const config = (function config () {
     const roomSizeRate = 0.8           // of zone size
     const corridorSizeRate = 0.6       // of room size. Can be corrected
-    const privateArea = 1              // private area around a game object
+    const privateArea = 2              // private area around a game object
                                        // can be corrected
     const base = {
       pause: 3000,                 // pause before to start a new game
       sizeOfPreferences: 5,        // is used by zone generator
       dangeonRedundancy: 10,       // how many dungeon trees are created to choose from
       minOfEnemies: 3,
-      visibility: 8
+      visibility: 7
     }
 
     // zone size is based on the number of rooms on the floor
@@ -337,7 +337,7 @@ import WebApp from './web-app'
       const room = Room.random(sample)
       const privateSize = privateAreaSize || Stat.floor(floor).privateAreaSize
 
-      if (guardL1 > 10) {
+      if (guardL1 > 50) {
         throw new Error("Can't allocate free space for point")
       }
 
@@ -355,8 +355,7 @@ import WebApp from './web-app'
           return point
         }
 
-        if (guardL2 > 30) {
-          // const newPrivateSize = privateSize > 1 ? privateSize - 1 : 1
+        if (guardL2 > 100) {
           return generate(floor, dangeon, sample, privateSize, guardL1 + 1)
         }
 
@@ -1421,6 +1420,12 @@ import WebApp from './web-app'
         }
       }
 
+      function changeFogDensity (value) {
+        return () => {
+          return [{ fogDensity: value }]
+        }
+      }
+
       return {
         noop,
         keep,
@@ -1431,13 +1436,14 @@ import WebApp from './web-app'
           if (action === undefined) { return noop }
           return action
         },
-        keepWorld
+        keepWorld,
+        changeFogDensity
       }
     }())
 
     function createDangeon (newFloor, archivedStates, savedPlayer) {
       function createPlayer (player) {
-        const level = 7
+        const level = 1
         if (player) {
           return R.dissoc('place', player)
         }
@@ -1452,7 +1458,7 @@ import WebApp from './web-app'
         })
       }
 
-      const floor = newFloor || 4
+      const floor = newFloor || 1
       const archive = archivedStates || []
 
       const player = createPlayer(savedPlayer)
@@ -1469,7 +1475,8 @@ import WebApp from './web-app'
         archive,
         viewport: Viewport.create(floor),
         state: config.gameStates.continues,
-        lightOn: false
+        lightOn: false,
+        fogDensity: 75
       }
 
       return [
@@ -1512,8 +1519,11 @@ import WebApp from './web-app'
         const { health, power, level, experience } = player
         const weapon = Stat.weapon(player.weapon).power
         const { breakpoint } = Stat.level(level)
+        const style = {
+          width: config.viewport.width
+        }
 
-        return h('div', { className: 'info' },
+        return h('div', { className: 'info flex-grid rounded stack-level-2', style },
           h('div', { className: 'item' },
             h('h2', {}, 'Health: '),
             h('p', {}, health)
@@ -1557,6 +1567,7 @@ import WebApp from './web-app'
         const { dangeon, viewport, floor, player, lightOn } = model
         const cellHeight = Stat.cellHeight
         const cellWidth = Stat.cellWidth
+        const fog = { background: `rgba(0,0,0,${model.fogDensity / 100})` }
 
         const rowStyle = {
           height: cellHeight
@@ -1572,28 +1583,37 @@ import WebApp from './web-app'
             R.map(cellId => {
               const point = Point.create(floor, cellId, rowId)
               const mark = config.marks[Dangeon.get(point, dangeon)]
-
               const isVisible = Stat.isVisible(
                 Point.distance(player.place, point)
               )
-
               const showAs = (lightOn || isVisible) ? '' : 'cell-hidden'
+              const fogStyle = (lightOn || isVisible) ? {} : fog
+              const className = `dangeon-cell ${mark}`
 
-              return h('div', {
-                className: [
-                  'dangeon-cell',
-                  mark
-                ].join(' '),
-                key: cellId,
-                style: cellStyle
-              }, h('div', { className: showAs }))
+              return h('div', { className, key: cellId, style: cellStyle },
+                h('div', { className: showAs, style: fogStyle })
+              )
             }, R.range(viewport.p0.x, viewport.p1.x))
           )
         ), R.range(viewport.p0.y, viewport.p1.y))
       }
 
+      function fogSliderView (fogDensity) {
+        const value = fogDensity || 80
+
+        return h('div', { className: 'fog-slider' },
+          h('input', {
+            type: 'range',
+            min: '0',
+            max: '100',
+            value,
+            onChange: ev => address(actions.changeFogDensity(ev.target.value))
+          })
+        )
+      }
+
       function hintBoardView () {
-        return h('div', { className: 'hint' },
+        return h('div', { className: 'hint flex-grid flex-column' },
           h('div', { className: 'item' },
             h('h2', { className: 'hint-header' }, 'player'),
             h('div', { className: 'cell-player hint-cell' })
@@ -1623,20 +1643,24 @@ import WebApp from './web-app'
 
       const app = (function app () {
         function App (model) {
-          const { state } = model
-
           const dangeonStyle = {
             width: config.viewport.width,
             height: config.viewport.height
           }
 
-          return h('div', { className: 'game' },
+          return h('div', { className: 'game flex-grid flex-column' },
             infoBoardVew(model),
-            h('div', { className: 'dangeon rounded', style: dangeonStyle },
-              gameStateView(state),
-              dangeonView(model)
-            ),
-            hintBoardView()
+            h('div', { className: 'game-board flex-grid' },
+              fogSliderView(model.fogDensity),
+              h('div', {
+                className: 'dangeon rounded m-auto stack-level-2',
+                style: dangeonStyle
+              },
+                gameStateView(model.state),
+                dangeonView(model)
+              ),
+              hintBoardView()
+            )
           )
         }
 
