@@ -13,7 +13,7 @@ import WebApp from './web-app'
   const config = (function config () {
     const roomSizeRate = 0.8           // of zone size
     const corridorSizeRate = 0.6       // of room size. Can be corrected
-    const privateArea = 3              // private area around a game object
+    const privateArea = 1              // private area around a game object
                                        // can be corrected
     const base = {
       pause: 3000,                 // pause before to start a new game
@@ -39,7 +39,7 @@ import WebApp from './web-app'
     const uniqObjects = makeEnum(['boss'])
     const gameBricks = makeEnum(['wall', 'space'])
     const gameObjects = makeEnum(['entry', 'exit', 'weapon', 'health', 'enemy'])
-    const gameStates = makeEnum(['over', 'continues'])
+    const gameStates = makeEnum(['Lose', 'Win', 'continues'])
 
     const objects = R.mergeAll([gameBricks, gameObjects, uniqObjects, hero])
 
@@ -232,8 +232,12 @@ import WebApp from './web-app'
       return x < config.visibility
     }
 
-    function isGameOver (test) {
-      return test === config.gameStates.over
+    function isPlayerLose (test) {
+      return test === config.gameStates.Lose
+    }
+
+    function isPlayerWin (test) {
+      return test === config.gameStates.Win
     }
 
     function isContinues (test) {
@@ -260,7 +264,8 @@ import WebApp from './web-app'
       cellWidth: cellWidth(),
       mark,
       isVisible,
-      isGameOver,
+      isPlayerLose,
+      isPlayerWin,
       isContinues,
       align
     }
@@ -1218,6 +1223,18 @@ import WebApp from './web-app'
         return createDangeon()
       }
 
+      const killEnemy = R.curry((enemy, model) => {
+        if (enemy.area) {
+          return R.reduce(
+            (accModel, place) => R.dissocPath(['enemy', place.id], accModel),
+            model,
+            enemy.area
+          )
+        }
+
+        return R.dissocPath(['enemy', enemy.place.id], model)
+      })
+
       function analyzeAttack (place, model) {
         const id = place.id
         const enemy = model.enemy[id]
@@ -1225,7 +1242,7 @@ import WebApp from './web-app'
 
         if (player.health <= 0) {
           return [
-            R.assoc('state', config.gameStates.over, model),
+            R.assoc('state', config.gameStates.Lose, model),
             tasks.pause(config.pause, prepareTheGame)
           ]
         }
@@ -1236,7 +1253,7 @@ import WebApp from './web-app'
 
           const result = R.compose(
             R.assocPath(['player', 'experience'], expAfter),
-            R.dissocPath(['enemy', id])
+            killEnemy(enemy)
           )(model)
 
           if (result.player.experience >= stats.breakpoint) {
@@ -1247,6 +1264,13 @@ import WebApp from './web-app'
             result.player.experience = result.player.experience - stats.breakpoint
             result.player.power = newStats.power
             result.player.health = newStats.health
+          }
+
+          if (enemy.type === 'boss') {
+            return [
+              R.assoc('state', config.gameStates.Win, model),
+              tasks.pause(config.pause, prepareTheGame)
+            ]
           }
 
           return [makeStep(place, result)]
@@ -1369,7 +1393,7 @@ import WebApp from './web-app'
           const id = moveTo.id
           const isPlaceSpace = R.compose(Cell.isSpace, Dangeon.get(moveTo))
 
-          if (Stat.isGameOver(state)) { return [{}] }
+          if (!Stat.isContinues(state)) { return [{}] }
 
           if (enemy[id]) { return attackEnemy(moveTo, model) }
           if (weapon[id]) { return takeWeapon(moveTo, model) }
@@ -1413,21 +1437,22 @@ import WebApp from './web-app'
 
     function createDangeon (newFloor, archivedStates, savedPlayer) {
       function createPlayer (player) {
+        const level = 7
         if (player) {
           return R.dissoc('place', player)
         }
 
         return R.merge({
-          level: 1,
+          level,
           experience: 0,
           weapon: 'stick'
         }, {
-          power: Stat.level(1).power,
-          health: Stat.level(1).health
+          power: Stat.level(level).power,
+          health: Stat.level(level).health
         })
       }
 
-      const floor = newFloor || 5
+      const floor = newFloor || 4
       const archive = archivedStates || []
 
       const player = createPlayer(savedPlayer)
@@ -1517,12 +1542,14 @@ import WebApp from './web-app'
       }
 
       function gameStateView (state) {
-        const currentGameState = Stat.isGameOver(state)
-          ? 'game-over'
-          : 'game-ok'
+        const currentGameState = Stat.isContinues(state)
+          ? 'game-ok'
+          : 'game-over'
+
+        const warn = Stat.isPlayerLose(state) ? 'Lose!!!' : 'Win!!!'
 
         return h('div', { className: 'game-state' + ' ' + currentGameState },
-          h('h2', {}, 'Game over!')
+          h('h2', {}, warn)
         )
       }
 
