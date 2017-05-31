@@ -2,7 +2,7 @@
 
 import WebApp from './web-app'
 
-(function application (root$) {
+;(function application (root$) {
   const debug = R.curry(function debug (msg, arg) {
     console.log('===================== DEBUG ================')
     console.log(msg, ': ', arg)
@@ -11,14 +11,14 @@ import WebApp from './web-app'
   })
 
   const config = (function config () {
-    const roomSizeRate = 0.8           // of zone size
-    const corridorSizeRate = 0.6       // of room size. Can be corrected
-    const privateArea = 2              // private area around a game object
-                                       // can be corrected
+    const roomSizeRate = 0.8 // of zone size
+    const corridorSizeRate = 0.6 // of room size. Can be corrected
+    const privateArea = 2 // private area around a game object
+    // can be corrected
     const base = {
-      pause: 3000,                 // pause before to start a new game
-      sizeOfPreferences: 5,        // is used by zone generator
-      dangeonRedundancy: 10,       // how many dungeon trees are created to choose from
+      pause: 3000, // pause before to start a new game
+      sizeOfPreferences: 5, // is used by zone generator
+      dangeonRedundancy: 10, // how many dungeon trees are created to choose from
       minOfEnemies: 3,
       visibility: 7
     }
@@ -84,7 +84,7 @@ import WebApp from './web-app'
 
     const health = {
       'small potion': { level: 1, health: 50 },
-      'potion': { level: 2, health: 100 },
+      potion: { level: 2, health: 100 },
       'medium potion': { level: 3, health: 200 },
       'great potion': { level: 4, health: 400 },
       'grand potion': { level: 5, health: 800 }
@@ -110,11 +110,9 @@ import WebApp from './web-app'
       const maybeSize = Math.floor(minRoomSize * corridorSizeRate)
       const halfRoomSize = Math.ceil(minRoomSize / 2)
 
-      const corridorSize = maybeSize < halfRoomSize
-        ? maybeSize
-        : halfRoomSize
+      const corridorSize = maybeSize < halfRoomSize ? maybeSize : halfRoomSize
 
-      const privateAreaSize = (privateArea > halfRoomSize / 2)
+      const privateAreaSize = privateArea > halfRoomSize / 2
         ? Math.ceil(halfRoomSize / 2)
         : privateArea
 
@@ -123,22 +121,25 @@ import WebApp from './web-app'
 
     function updateFloors (obj) {
       const result = {}
-      R.forEach(key => { result[key] = addSizes(obj[key]) }, R.keys(obj))
+      R.forEach(key => {
+        result[key] = addSizes(obj[key])
+      }, R.keys(obj))
       return result
     }
 
     function makeEnum (list) {
       const result = {}
-      R.forEach(x => { result[x] = Symbol(x) }, list)
+      R.forEach(x => {
+        result[x] = Symbol(x)
+      }, list)
       return result
     }
 
     function makeMarks (obj) {
       const result = {}
-      R.forEach(
-        key => { result[obj[key]] = 'cell-' + key },
-        R.keys(obj)
-      )
+      R.forEach(key => {
+        result[obj[key]] = 'cell-' + key
+      }, R.keys(obj))
 
       return result
     }
@@ -157,7 +158,7 @@ import WebApp from './web-app'
       enemies,
       health
     })
-  }())
+  })()
 
   const Stat = (function Stat () {
     function weapon (type) {
@@ -222,10 +223,7 @@ import WebApp from './web-app'
     }
 
     function objectsToSave () {
-      return R.concat(
-        R.keys(config.gameObjects),
-        ['floor', 'dangeon']
-      )
+      return R.concat(R.keys(config.gameObjects), ['floor', 'dangeon'])
     }
 
     function isVisible (x) {
@@ -245,8 +243,12 @@ import WebApp from './web-app'
     }
 
     function align (x, xMin, xMax) {
-      if (x < xMin) { return xMin }
-      if (x > xMax) { return xMax }
+      if (x < xMin) {
+        return xMin
+      }
+      if (x > xMax) {
+        return xMax
+      }
       return x
     }
 
@@ -269,7 +271,7 @@ import WebApp from './web-app'
       isContinues,
       align
     }
-  }())
+  })()
 
   const Random = (function Random () {
     function inRange (min, max) {
@@ -284,7 +286,7 @@ import WebApp from './web-app'
       inRange,
       oneFrom
     }
-  }())
+  })()
 
   const Point = (function Point () {
     const moveUp = p => update(p.x, p.y - 1, p)
@@ -305,16 +307,15 @@ import WebApp from './web-app'
       return { error: true }
     }
 
-    const create = R.curry(
-      function create (level, x, y) {
-        const result = createPoint(level, x, y)
+    const create = R.curry(function create (level, x, y) {
+      const result = createPoint(level, x, y)
 
-        if (result.error) {
-          throw new Error(`Point 'x:${x}, y:${y}' is out of the borders`)
-        }
+      if (result.error) {
+        throw new Error(`Point 'x:${x}, y:${y}' is out of the borders`)
+      }
 
-        return result
-      })
+      return result
+    })
 
     function isAreaFree (point, area) {
       return R.compose(
@@ -327,7 +328,9 @@ import WebApp from './web-app'
     function update (x, y, p) {
       const result = createPoint(p.level, x, y)
 
-      if (result.error) { return p }
+      if (result.error) {
+        return p
+      }
 
       return result
     }
@@ -365,7 +368,14 @@ import WebApp from './web-app'
       return randomPoint()
     }
 
-    function generateArea (floor, dangeon, sample, size, privateAreaSize, guard = 0) {
+    function generateArea (
+      floor,
+      dangeon,
+      sample,
+      size,
+      privateAreaSize,
+      guard = 0
+    ) {
       const privateSize = privateAreaSize || Stat.floor(floor).privateAreaSize
       const point = generate(floor, dangeon, sample, privateSize + size)
       const area = pointsInArea(point, size, size)
@@ -385,8 +395,8 @@ import WebApp from './web-app'
       const maybeMin = point[axis] - privateAreaSize
       const maybeMax = point[axis] + privateAreaSize + 1
 
-      const min = (maybeMin < 0) ? 0 : maybeMin
-      const max = (maybeMax > limit) ? limit : maybeMax
+      const min = maybeMin < 0 ? 0 : maybeMin
+      const max = maybeMax > limit ? limit : maybeMax
 
       return R.range(min, max)
     }
@@ -421,13 +431,15 @@ import WebApp from './web-app'
     }
 
     function distance (a, b) {
-      if (a === undefined) { return 0 }
-      if (b === undefined) { return 0 }
+      if (a === undefined) {
+        return 0
+      }
+      if (b === undefined) {
+        return 0
+      }
 
       return Math.floor(
-        Math.sqrt(
-          Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2)
-        )
+        Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2))
       )
     }
 
@@ -442,7 +454,7 @@ import WebApp from './web-app'
       privateArea,
       distance
     }
-  }())
+  })()
 
   const Cell = (function Cell () {
     const { wall, space } = config.gameBricks
@@ -464,7 +476,7 @@ import WebApp from './web-app'
       isWall,
       isSpace
     }
-  }())
+  })()
 
   const Weapon = (function Weapon () {
     function minDamage (weapon) {
@@ -491,7 +503,7 @@ import WebApp from './web-app'
       create,
       randomDamage
     }
-  }())
+  })()
 
   const DangeonTree = (function DangeonTree () {
     function split (axis, splitAt, p1, p2) {
@@ -510,9 +522,7 @@ import WebApp from './web-app'
       // p2 - right bottom, excluded from the zone
 
       const { rooms } = Stat.floor(floor)
-      const diff = (a, b) => (
-        Math.abs(rooms - a[1]) - Math.abs(rooms - b[1])
-      )
+      const diff = (a, b) => Math.abs(rooms - a[1]) - Math.abs(rooms - b[1])
 
       const times = R.compose(
         R.head,
@@ -543,15 +553,23 @@ import WebApp from './web-app'
         const { left, right } = split(axis, splitValue, p1, p2)
 
         const [leftChild, leftRooms] = createTree(floor, left, rooms, newPref)
-        const [rightChild, rightRooms] = createTree(floor, right, rooms, newPref)
+        const [rightChild, rightRooms] = createTree(
+          floor,
+          right,
+          rooms,
+          newPref
+        )
 
-        return [{
-          axis,
-          p1,
-          p2,
-          left: leftChild,
-          right: rightChild
-        }, leftRooms + rightRooms]
+        return [
+          {
+            axis,
+            p1,
+            p2,
+            left: leftChild,
+            right: rightChild
+          },
+          leftRooms + rightRooms
+        ]
       }
 
       return [R.merge(zone, Room.create(floor, { p1, p2 })), 1]
@@ -560,7 +578,7 @@ import WebApp from './web-app'
     return {
       create
     }
-  }())
+  })()
 
   const Room = (function Room () {
     function create (floor, bound) {
@@ -595,8 +613,12 @@ import WebApp from './web-app'
     }
 
     function adjacentZone (fn, { left, right }) {
-      if (fn(left.p1, left.p2)) { return left }
-      if (fn(right.p1, right.p2)) { return right }
+      if (fn(left.p1, left.p2)) {
+        return left
+      }
+      if (fn(right.p1, right.p2)) {
+        return right
+      }
 
       throw new Error(`There is not adjacent zone!`)
     }
@@ -632,7 +654,9 @@ import WebApp from './web-app'
     function neighbors (node) {
       const { axis, left, right } = node
 
-      if (node.r1 !== undefined) { return node }
+      if (node.r1 !== undefined) {
+        return node
+      }
 
       const adjacentPoint = axis === 'x' ? right.p1 : left.p2
       const testLeft = leftAdjacent(adjacentPoint, axis)
@@ -645,11 +669,11 @@ import WebApp from './web-app'
     }
 
     function random (node) {
-      if (node.r1 !== undefined) { return node }
+      if (node.r1 !== undefined) {
+        return node
+      }
 
-      return random(
-        Random.oneFrom([node.left, node.right])
-      )
+      return random(Random.oneFrom([node.left, node.right]))
     }
 
     return {
@@ -658,7 +682,7 @@ import WebApp from './web-app'
       relativePosition,
       random
     }
-  }())
+  })()
 
   const Tunnel = (function Tunnel () {
     function fill (axis, width, length, value) {
@@ -713,9 +737,7 @@ import WebApp from './web-app'
       const pair = axis === 'x' ? 'y' : 'x'
 
       if (axis === 'y') {
-        const top = (right.r1[axis] < left.r1[axis])
-          ? right
-          : left
+        const top = right.r1[axis] < left.r1[axis] ? right : left
         const bottom = top === right ? left : right
 
         const p11 = top.r1[axis]
@@ -729,9 +751,7 @@ import WebApp from './web-app'
         return fillAngular(axis, top, sideTop, bottom, sideBottom)
       }
 
-      const top = (left.r2[axis] > right.r2[axis])
-        ? left
-        : right
+      const top = left.r2[axis] > right.r2[axis] ? left : right
       const bottom = top === left ? right : left
 
       const p11 = top.r2[axis]
@@ -764,33 +784,36 @@ import WebApp from './web-app'
     return {
       create
     }
-  }())
+  })()
 
   const Dangeon = (function Dangeon () {
     const get = R.curry((pos, dangeon) => dangeon[pos.y][pos.x])
 
     function create ({ rows, cols }) {
-      const fillWith = R.compose(
-        R.repeat(R.__, rows),
-        R.repeat(R.__, cols)
-      )
+      const fillWith = R.compose(R.repeat(R.__, rows), R.repeat(R.__, cols))
 
       return fillWith(config.objects.wall)
     }
 
     function batch (fn, points, cell, dangeon) {
-      return R.reduce((accDangeon, point) => (
-        fn(point, cell, accDangeon)
-      ), dangeon, points)
+      return R.reduce(
+        (accDangeon, point) => fn(point, cell, accDangeon),
+        dangeon,
+        points
+      )
     }
 
     function update (point, cell, dangeon) {
-      if (point === undefined) { return dangeon }
+      if (point === undefined) {
+        return dangeon
+      }
 
       const pointIsWall = R.compose(Cell.isWall, get(point))
 
       if (pointIsWall(dangeon)) {
-        throw new Error(`Position 'x:${point.x}, y:${point.y}' is occupied by a wall.`)
+        throw new Error(
+          `Position 'x:${point.x}, y:${point.y}' is occupied by a wall.`
+        )
       }
 
       return set(point, cell, dangeon)
@@ -824,7 +847,9 @@ import WebApp from './web-app'
     function fromSample (floor, node, dangeon) {
       const { axis, r1, r2, left, right } = node
 
-      if (dangeon.error) { return dangeon }
+      if (dangeon.error) {
+        return dangeon
+      }
 
       if (r1 !== undefined) {
         const rows = R.range(r1.y, r2.y)
@@ -838,11 +863,7 @@ import WebApp from './web-app'
         fromSample(floor, right, dangeon)
       )
 
-      const withCorridors = Tunnel.create(
-        floor,
-        axis,
-        Room.neighbors(node)
-      )
+      const withCorridors = Tunnel.create(floor, axis, Room.neighbors(node))
 
       if (withRooms.error || withCorridors.error) {
         return { error: true }
@@ -852,10 +873,7 @@ import WebApp from './web-app'
     }
 
     function area (listOfPoints, dangeon) {
-      return R.map(
-        get(R.__, dangeon),
-        listOfPoints
-      )
+      return R.map(get(R.__, dangeon), listOfPoints)
     }
 
     return {
@@ -868,7 +886,7 @@ import WebApp from './web-app'
       fromSample: R.curry(fromSample),
       area: R.curry(area)
     }
-  }())
+  })()
 
   const Viewport = (function Viewport () {
     function create (floor, place) {
@@ -888,10 +906,7 @@ import WebApp from './web-app'
       const halfVCols = Math.floor(vCols / 2)
       const halfVRows = Math.floor(vRows / 2)
 
-      const p0 = Point.create(floor)(
-        halfCols - halfVCols,
-        halfRows - halfVRows
-      )
+      const p0 = Point.create(floor)(halfCols - halfVCols, halfRows - halfVRows)
 
       const p1 = Point.create(floor)(
         halfCols + (vCols - halfVCols),
@@ -968,21 +983,29 @@ import WebApp from './web-app'
       create,
       update
     }
-  }())
+  })()
 
   function rogueLikeGame (address) {
     const tasks = (function tasks () {
       function batchAccum (tasks, init) {
-        return () => R.reduce((acc, fn) => {
-          return fn(acc)()
-        }, init, tasks)
+        return () =>
+          R.reduce(
+            (acc, fn) => {
+              return fn(acc)()
+            },
+            init,
+            tasks
+          )
       }
 
       function generateDamage ({ player, enemy }, keeper) {
-        return () => address(keeper({
-          player: Weapon.randomDamage(player),
-          enemy: Weapon.randomDamage(enemy)
-        }))
+        return () =>
+          address(
+            keeper({
+              player: Weapon.randomDamage(player),
+              enemy: Weapon.randomDamage(enemy)
+            })
+          )
       }
 
       function pause (delay, keeper) {
@@ -995,7 +1018,9 @@ import WebApp from './web-app'
 
         if (dangeon.error) {
           if (guard > 9) {
-            throw new Error('Configuration Error! Wrong room / cooridor settings.')
+            throw new Error(
+              'Configuration Error! Wrong room / cooridor settings.'
+            )
           }
 
           return generateDangeon(level, p1, p2, area, guard + 1)
@@ -1005,42 +1030,44 @@ import WebApp from './web-app'
       }
 
       function findItem (list, level) {
-        return R.find(
-          key => list[key].level === level,
-          R.keys(list)
-        )
+        return R.find(key => list[key].level === level, R.keys(list))
       }
 
-      const placePlayer = R.curry((level, player, entry, { dangeon, sample }) => {
-        function getPlayerPoint (entry) {
-          if (R.keys(entry).length > 0) {
-            const entryPoint = R.head(R.values(entry)).place
-            return Point.moveRight(entryPoint)
+      const placePlayer = R.curry(
+        (level, player, entry, { dangeon, sample }) => {
+          function getPlayerPoint (entry) {
+            if (R.keys(entry).length > 0) {
+              const entryPoint = R.head(R.values(entry)).place
+              return Point.moveRight(entryPoint)
+            }
+
+            return Point.generate(level, dangeon, sample)
           }
 
-          return Point.generate(level, dangeon, sample)
-        }
+          const point = getPlayerPoint(entry)
 
-        const point = getPlayerPoint(entry)
-
-        return R.assoc('place', point, player)
-      })
-
-      const genStep = R.curry(
-        function genStep (base, level, mark, [result, { dangeon, sample }]) {
-          const place = Point.generate(level, dangeon, sample)
-
-          const filledDangeon = {
-            sample,
-            dangeon: Dangeon.update(place, mark, dangeon)
-          }
-
-          return [
-            R.assoc(place.id, R.merge(base, { place }), result),
-            filledDangeon
-          ]
+          return R.assoc('place', point, player)
         }
       )
+
+      const genStep = R.curry(function genStep (
+        base,
+        level,
+        mark,
+        [result, { dangeon, sample }]
+      ) {
+        const place = Point.generate(level, dangeon, sample)
+
+        const filledDangeon = {
+          sample,
+          dangeon: Dangeon.update(place, mark, dangeon)
+        }
+
+        return [
+          R.assoc(place.id, R.merge(base, { place }), result),
+          filledDangeon
+        ]
+      })
 
       function generateBoss (level, base, mark, { dangeon, sample }) {
         const size = Stat.enemy('boss').size || 1
@@ -1050,14 +1077,20 @@ import WebApp from './web-app'
           (obj, place) => {
             obj[place.id] = R.merge(base, { place, area })
             return obj
-          }, {}, area)
+          },
+          {},
+          area
+        )
 
         const filledDangeon = batchUpdate(area, mark, dangeon)
 
-        return [{ enemy: result }, {
-          dangeon: filledDangeon,
-          sample
-        }]
+        return [
+          { enemy: result },
+          {
+            dangeon: filledDangeon,
+            sample
+          }
+        ]
       }
 
       const generateEnemies = R.curry((level, count, dangeon) => {
@@ -1071,9 +1104,13 @@ import WebApp from './web-app'
           return generateBoss(level, base, mark, dangeon)
         }
 
-        const [result, next] = R.reduce(acc => {
-          return genStep(base, level, mark, acc)
-        }, [{}, dangeon], R.range(0, numOfEnemies))
+        const [result, next] = R.reduce(
+          acc => {
+            return genStep(base, level, mark, acc)
+          },
+          [{}, dangeon],
+          R.range(0, numOfEnemies)
+        )
 
         return [{ enemy: result }, next]
       })
@@ -1089,8 +1126,7 @@ import WebApp from './web-app'
           R.range(0, count)
         )
 
-        return [
-        { health: result }, next]
+        return [{ health: result }, next]
       })
 
       const generateWeapon = R.curry((level, { dangeon, sample }) => {
@@ -1105,7 +1141,7 @@ import WebApp from './web-app'
           sample
         }
 
-        return [ { weapon: result }, fullDangeon ]
+        return [{ weapon: result }, fullDangeon]
       })
 
       const placeEntrance = R.curry((entrance, cond, level, fullDangeonIn) => {
@@ -1113,7 +1149,9 @@ import WebApp from './web-app'
         const mark = Stat.mark(entrance)
         const { dangeon, sample } = fullDangeonIn
 
-        if (!cond) { return [{ [entrance]: {} }, fullDangeonIn] }
+        if (!cond) {
+          return [{ [entrance]: {} }, fullDangeonIn]
+        }
 
         if (mark === undefined) {
           throw new Error(`Unknown entrance: ${entrance}`)
@@ -1127,10 +1165,7 @@ import WebApp from './web-app'
           dangeon: Dangeon.update(place, config.marks[entrance], dangeon)
         }
 
-        return [
-          { [entrance]: result },
-          fullDangeon
-        ]
+        return [{ [entrance]: result }, fullDangeon]
       })
 
       function genWorld (model, keep) {
@@ -1158,10 +1193,14 @@ import WebApp from './web-app'
             placeEntrance('exit', level < 5, level)
           ]
 
-          const [items, filledDangeon] = R.reduce(([acc, data], generator) => {
-            const result = generator(data)
-            return [R.merge(acc, result[0]), result[1]]
-          }, [{}, fullDangeon], listOfGenerators)
+          const [items, filledDangeon] = R.reduce(
+            ([acc, data], generator) => {
+              const result = generator(data)
+              return [R.merge(acc, result[0]), result[1]]
+            },
+            [{}, fullDangeon],
+            listOfGenerators
+          )
 
           const player = placePlayer(
             level,
@@ -1184,7 +1223,7 @@ import WebApp from './web-app'
         pause,
         genWorld
       }
-    }())
+    })()
 
     const actions = (function actions () {
       const noop = () => [{}]
@@ -1201,21 +1240,21 @@ import WebApp from './web-app'
       keyMoveMap.set('a', move(Point.moveLeft))
       keyMoveMap.set('d', move(Point.moveRight))
 
-      const updateViewport = (place, viewport) => (
-        { viewport: Viewport.update(place, viewport) }
-      )
+      const updateViewport = (place, viewport) => ({
+        viewport: Viewport.update(place, viewport)
+      })
 
-      const makeStep = (place, model) => (
+      const makeStep = (place, model) =>
         R.merge(
           R.assocPath(['player', 'place'], place, model),
           updateViewport(place, model.viewport)
         )
-      )
 
       const prepareTheGame = () => {
         return [
           { state: config.gameStates.continues },
-          tasks.pause(300, newGame)]
+          tasks.pause(300, newGame)
+        ]
       }
 
       const newGame = () => {
@@ -1260,7 +1299,8 @@ import WebApp from './web-app'
             const newStats = Stat.level(newLevel)
 
             result.player.level = newLevel
-            result.player.experience = result.player.experience - stats.breakpoint
+            result.player.experience =
+              result.player.experience - stats.breakpoint
             result.player.power = newStats.power
             result.player.health = newStats.health
           }
@@ -1309,7 +1349,10 @@ import WebApp from './web-app'
           const resultHealth = player.health + Stat.health(healthType)
 
           const take = R.compose(
-            R.assocPath(['player', 'health'], Stat.align(resultHealth, 0, maxHealth)),
+            R.assocPath(
+              ['player', 'health'],
+              Stat.align(resultHealth, 0, maxHealth)
+            ),
             R.dissocPath(['health', id])
           )
 
@@ -1342,10 +1385,13 @@ import WebApp from './web-app'
 
         return [
           {},
-          tasks.generateDamage({
-            player,
-            enemy: enemy[id]
-          }, simulateAttack(place))
+          tasks.generateDamage(
+            {
+              player,
+              enemy: enemy[id]
+            },
+            simulateAttack(place)
+          )
         ]
       }
 
@@ -1387,7 +1433,16 @@ import WebApp from './web-app'
 
       function move (step) {
         return function (model) {
-          const { player, enemy, health, weapon, exit, entry, viewport, state } = model
+          const {
+            player,
+            enemy,
+            health,
+            weapon,
+            exit,
+            entry,
+            viewport,
+            state
+          } = model
           const moveTo = step(player.place)
           const id = moveTo.id
           const isPlaceSpace = R.compose(Cell.isSpace, Dangeon.get(moveTo))
@@ -1409,7 +1464,7 @@ import WebApp from './web-app'
       }
 
       function keepPlayerPlace (place) {
-        return (model) => {
+        return model => {
           return [R.assocPath(['player', 'place'], place, model)]
         }
       }
@@ -1433,13 +1488,15 @@ import WebApp from './web-app'
         keyDown: key => {
           const action = keyMoveMap.get(key)
 
-          if (action === undefined) { return noop }
+          if (action === undefined) {
+            return noop
+          }
           return action
         },
         keepWorld,
         changeFogDensity
       }
-    }())
+    })()
 
     function createDangeon (newFloor, archivedStates, savedPlayer) {
       function createPlayer (player) {
@@ -1448,14 +1505,17 @@ import WebApp from './web-app'
           return R.dissoc('place', player)
         }
 
-        return R.merge({
-          level,
-          experience: 0,
-          weapon: 'stick'
-        }, {
-          power: Stat.level(level).power,
-          health: Stat.level(level).health
-        })
+        return R.merge(
+          {
+            level,
+            experience: 0,
+            weapon: 'stick'
+          },
+          {
+            power: Stat.level(level).power,
+            health: Stat.level(level).health
+          }
+        )
       }
 
       const floor = newFloor || 1
@@ -1479,10 +1539,7 @@ import WebApp from './web-app'
         fogDensity: 75
       }
 
-      return [
-        model,
-        tasks.genWorld(model, actions.keepWorld)
-      ]
+      return [model, tasks.genWorld(model, actions.keepWorld)]
     }
 
     function view () {
@@ -1523,28 +1580,42 @@ import WebApp from './web-app'
           width: config.viewport.width
         }
 
-        return h('div', { className: 'info flex-grid rounded stack-level-2', style },
-          h('div', { className: 'item' },
+        return h(
+          'div',
+          { className: 'info flex-grid rounded stack-level-2', style },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', {}, 'Health: '),
             h('p', {}, health)
           ),
-          h('div', { className: 'item' },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', {}, 'Weapon: '),
             h('p', {}, player.weapon)
           ),
-          h('div', { className: 'item' },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', {}, 'Power: '),
             h('p', {}, (power + weapon).toString())
           ),
-          h('div', { className: 'item' },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', {}, 'Level: '),
             h('p', {}, level.toString())
           ),
-          h('div', { className: 'item' },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', {}, 'Experience: '),
             h('p', {}, experience.toString() + ' / ' + breakpoint.toString())
           ),
-          h('div', { className: 'item' },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', {}, 'Floor: '),
             h('p', {}, floor.toString())
           )
@@ -1558,7 +1629,9 @@ import WebApp from './web-app'
 
         const warn = Stat.isPlayerLose(state) ? 'Lose!!!' : 'Win!!!'
 
-        return h('div', { className: 'game-state' + ' ' + currentGameState },
+        return h(
+          'div',
+          { className: 'game-state' + ' ' + currentGameState },
           h('h2', {}, warn)
         )
       }
@@ -1578,30 +1651,38 @@ import WebApp from './web-app'
           width: cellWidth
         }
 
-        return R.map(rowId => (
-          h('div', { className: 'dangeon-row', key: rowId, style: rowStyle },
-            R.map(cellId => {
-              const point = Point.create(floor, cellId, rowId)
-              const mark = config.marks[Dangeon.get(point, dangeon)]
-              const isVisible = Stat.isVisible(
-                Point.distance(player.place, point)
-              )
-              const showAs = (lightOn || isVisible) ? '' : 'cell-hidden'
-              const fogStyle = (lightOn || isVisible) ? {} : fog
-              const className = `dangeon-cell ${mark}`
+        return R.map(
+          rowId =>
+            h(
+              'div',
+              { className: 'dangeon-row', key: rowId, style: rowStyle },
+              R.map(cellId => {
+                const point = Point.create(floor, cellId, rowId)
+                const mark = config.marks[Dangeon.get(point, dangeon)]
+                const isVisible = Stat.isVisible(
+                  Point.distance(player.place, point)
+                )
+                const showAs = lightOn || isVisible ? '' : 'cell-hidden'
+                const fogStyle = lightOn || isVisible ? {} : fog
+                const className = `dangeon-cell ${mark}`
 
-              return h('div', { className, key: cellId, style: cellStyle },
-                h('div', { className: showAs, style: fogStyle })
-              )
-            }, R.range(viewport.p0.x, viewport.p1.x))
-          )
-        ), R.range(viewport.p0.y, viewport.p1.y))
+                return h(
+                  'div',
+                  { className, key: cellId, style: cellStyle },
+                  h('div', { className: showAs, style: fogStyle })
+                )
+              }, R.range(viewport.p0.x, viewport.p1.x))
+            ),
+          R.range(viewport.p0.y, viewport.p1.y)
+        )
       }
 
       function fogSliderView (fogDensity) {
         const value = fogDensity || 80
 
-        return h('div', { className: 'fog-slider' },
+        return h(
+          'div',
+          { className: 'fog-slider' },
           h('input', {
             type: 'range',
             min: '0',
@@ -1613,28 +1694,42 @@ import WebApp from './web-app'
       }
 
       function hintBoardView () {
-        return h('div', { className: 'hint flex-grid flex-column' },
-          h('div', { className: 'item' },
+        return h(
+          'div',
+          { className: 'hint flex-grid flex-column' },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', { className: 'hint-header' }, 'player'),
             h('div', { className: 'cell-player hint-cell' })
           ),
-          h('div', { className: 'item' },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', { className: 'hint-header' }, 'enemy'),
             h('div', { className: 'cell-enemy hint-cell' })
           ),
-          h('div', { className: 'item' },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', { className: 'hint-header' }, 'health'),
             h('div', { className: 'cell-health hint-cell' })
           ),
-          h('div', { className: 'item' },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', { className: 'hint-header' }, 'weapon'),
             h('div', { className: 'cell-weapon hint-cell' })
           ),
-          h('div', { className: 'item' },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', { className: 'hint-header' }, 'entry'),
             h('div', { className: 'cell-entry hint-cell' })
           ),
-          h('div', { className: 'item' },
+          h(
+            'div',
+            { className: 'item' },
             h('h2', { className: 'hint-header' }, 'exit'),
             h('div', { className: 'cell-exit hint-cell' })
           )
@@ -1648,14 +1743,20 @@ import WebApp from './web-app'
             height: config.viewport.height
           }
 
-          return h('div', { className: 'game flex-grid flex-column' },
+          return h(
+            'div',
+            { className: 'game flex-grid flex-column' },
             infoBoardVew(model),
-            h('div', { className: 'game-board flex-grid' },
+            h(
+              'div',
+              { className: 'game-board flex-grid' },
               fogSliderView(model.fogDensity),
-              h('div', {
-                className: 'dangeon rounded m-auto stack-level-2',
-                style: dangeonStyle
-              },
+              h(
+                'div',
+                {
+                  className: 'dangeon rounded m-auto stack-level-2',
+                  style: dangeonStyle
+                },
                 gameStateView(model.state),
                 dangeonView(model)
               ),
@@ -1665,7 +1766,7 @@ import WebApp from './web-app'
         }
 
         return { App }
-      }())
+      })()
 
       function reform (model) {
         const { dangeon } = model
@@ -1688,9 +1789,6 @@ import WebApp from './web-app'
   }
 
   return (function start () {
-    return R.compose(
-      WebApp.start,
-      rogueLikeGame
-    )(WebApp.send)
-  }())
-}(document.getElementById('app-container')))
+    return R.compose(WebApp.start, rogueLikeGame)(WebApp.send)
+  })()
+})(document.getElementById('app-container'))
