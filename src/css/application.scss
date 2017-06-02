@@ -19,6 +19,10 @@ $fourth-offset: $std-offset / 4;
   margin: 0 auto;
 }
 
+.p-std {
+  padding: $std-offset;
+}
+
 .flex-grid {
   display: flex;
   justify-content: space-around;
@@ -26,6 +30,10 @@ $fourth-offset: $std-offset / 4;
 
 .flex-column {
   flex-direction: column;
+}
+
+.justify-center {
+  justify-content: center;
 }
 
 .info {
@@ -104,13 +112,12 @@ $fourth-offset: $std-offset / 4;
 .game-state {
   position: absolute;
   top: 25%;
-  border-radius: 5px;
   background: $color-enemy;
   color: $color-white;
+  text-align: center;
 
   h2 {
-    display: inline-block;
-    vertical-align: middle;
+    margin-top: 15%;
   }
 }
 
@@ -141,8 +148,35 @@ $fourth-offset: $std-offset / 4;
   vertical-align: bottom;
 }
 
-.fog-slider {
-  input {
-    transform: translateY(100px) rotate(90deg);
+.game-settings {
+  position: absolute;
+  top: 25%;
+  left: 25%;
+  width: 50%;
+  padding: $half-offset;
+  background: $color-exit;
+
+  .substrate {
+    padding: $std-offset;
+    background: white(.9);
   }
+}
+
+.fog-slider {
+  .item {
+    margin: $std-offset;
+    padding: $std-offset;
+  }
+
+}
+
+.btn-pretty {
+  @include stack-effect(2);
+  display: block;
+  width: 5em;
+  margin: 0 auto;
+  border: 0;
+  border-radius: $half-offset;
+  background: $color-weapon;
+  color: $color-white;
 }
