@@ -4,7 +4,7 @@ module.exports = function (root) {
   return {
     context: path.resolve(root, 'src'),
     output: {
-      path: path.resolve(root, 'build'),
+      path: path.resolve(root, 'docs'),
       filename: ('./bundle.js')
     },
     module: {
