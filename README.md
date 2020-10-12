@@ -2,4 +2,4 @@
 
 freeCodeCamp project: "Build a Roguelike Dungeon Crawler Game"
 
-[Preview](https://vigntom2708.github.io/roguelike-game/)
+[Preview](https://vigntom.github.io/roguelike-game/)
