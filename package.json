@@ -18,7 +18,7 @@
     "extract-text-webpack-plugin": "^2.1.0",
     "html-webpack-plugin": "^2.28.0",
     "jsctags": "^5.1.1",
-    "karma": "^1.6.0",
+    "karma": "^6.3.14",
     "karma-chrome-launcher": "^2.0.0",
     "karma-phantomjs-launcher": "^1.0.4",
     "karma-qunit": "^1.2.1",
